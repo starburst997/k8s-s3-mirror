@@ -130,6 +130,106 @@ vim k8s/configmap.yaml
 kubectl apply -f k8s/
 ```
 
+## Deployment Patterns
+
+### Pattern 1: Shared Proxy (Recommended)
+
+Deploy one S3 proxy instance that multiple applications share. This is the most resource-efficient approach.
+
+```yaml
+# All apps point to: http://s3-proxy.s3-mirror.svc.cluster.local
+```
+
+### Pattern 2: Sidecar Proxy
+
+Each application gets its own S3 proxy and PostgreSQL database. This provides complete isolation but uses more resources.
+
+#### Kubernetes Sidecar Example
+
+See [`examples/sidecar-deployment.yaml`](examples/sidecar-deployment.yaml) for a complete example that includes:
+- Application container
+- S3 proxy sidecar
+- PostgreSQL container
+- Persistent volume for database
+- All in a single pod
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  template:
+    spec:
+      containers:
+        # Your application
+        - name: app
+          image: your-app:latest
+          env:
+            - name: S3_ENDPOINT
+              value: "http://localhost:8080"  # Local proxy
+
+        # S3 Proxy sidecar
+        - name: s3-proxy
+          image: ghcr.io/starburst997/k8s-s3-mirror:latest
+          env:
+            - name: POSTGRES_URL
+              value: "postgres://user:pass@localhost:5432/s3_mirror"
+            # ... other env vars
+
+        # PostgreSQL
+        - name: postgres
+          image: postgres:15-alpine
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: myapp-postgres-pvc
+```
+
+#### Benefits of Sidecar Pattern:
+- **Complete isolation**: Each app has its own proxy and database
+- **Independent scaling**: Scale apps independently
+- **Fault isolation**: Issues in one app don't affect others
+- **Custom configuration**: Per-app S3 settings and bucket prefixes
+- **Network locality**: Communication via localhost is faster
+
+#### Drawbacks:
+- **Resource overhead**: Each app needs 3 containers
+- **Complex management**: More components to monitor
+- **Database per app**: Higher storage costs
+
+#### Simplified Sidecar (No Database)
+
+For even simpler deployments, you can disable database tracking entirely:
+
+```yaml
+env:
+  - name: DISABLE_DATABASE
+    value: "true"
+```
+
+This mode:
+- ✅ Still mirrors to backup S3
+- ✅ Uses less resources (no PostgreSQL needed)
+- ✅ Simpler deployment
+- ❌ No file inventory tracking
+- ❌ No backup status monitoring
+
+See [`examples/sidecar-simple.yaml`](examples/sidecar-simple.yaml) for a complete example.
+
+#### Docker Compose Sidecar Example
+
+For local development, see [`examples/docker-compose-sidecar.yml`](examples/docker-compose-sidecar.yml):
+
+```bash
+cd examples
+docker-compose -f docker-compose-sidecar.yml up
+```
+
 ## Application Integration
 
 Simply update your S3 client configuration to point to the proxy service. The only changes needed:
@@ -217,7 +317,14 @@ svc := s3.New(sess)
 | `MIRROR_ACCESS_KEY`     | Mirror S3 access key                                 | Required                   |
 | `MIRROR_SECRET_KEY`     | Mirror S3 secret key                                 | Required                   |
 | `MIRROR_BUCKET_PREFIX`  | Optional prefix for mirror bucket names (e.g. "mirror-") | Empty (no prefix)      |
-| `POSTGRES_URL`          | PostgreSQL connection string                         | Required                   |
+| `POSTGRES_URL`          | PostgreSQL connection string                         | Required (unless disabled) |
+| `POSTGRES_HOST`         | PostgreSQL host (alternative to POSTGRES_URL)        | `localhost`                |
+| `POSTGRES_PORT`         | PostgreSQL port                                      | `5432`                     |
+| `POSTGRES_USER`         | PostgreSQL username                                  | `s3mirror`                 |
+| `POSTGRES_PASSWORD`     | PostgreSQL password                                  | Required (if not using URL)|
+| `POSTGRES_DB`           | PostgreSQL database name                             | `s3_mirror`                |
+| `POSTGRES_SSLMODE`      | PostgreSQL SSL mode                                  | `disable`                  |
+| `DISABLE_DATABASE`      | Disable database tracking (mirror-only mode)         | `false`                    |
 | `LOG_LEVEL`             | Logging level (debug/info/warn/error/off)            | `info`                     |
 
 ### Bucket Prefix for Mirroring

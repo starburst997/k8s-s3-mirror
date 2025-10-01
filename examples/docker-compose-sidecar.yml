@@ -1,0 +1,68 @@
+version: '3.8'
+
+# Example of running S3 proxy as a sidecar with your application
+# Each app gets its own proxy and database
+
+services:
+  # Your application
+  myapp:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    environment:
+      # Point to local proxy instead of S3
+      S3_ENDPOINT: http://localhost:8080
+      S3_FORCE_PATH_STYLE: "true"
+      # No AWS credentials needed
+    command: node index.js
+    network_mode: "service:s3-proxy"  # Share network namespace with proxy
+    depends_on:
+      - s3-proxy
+      - postgres
+
+  # S3 Proxy sidecar
+  s3-proxy:
+    build: ..
+    environment:
+      # Main S3
+      MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT:-https://s3.amazonaws.com}
+      MAIN_ACCESS_KEY: ${MAIN_ACCESS_KEY}
+      MAIN_SECRET_KEY: ${MAIN_SECRET_KEY}
+
+      # Mirror S3
+      MIRROR_S3_ENDPOINT: ${MIRROR_S3_ENDPOINT:-https://s3.us-west-000.backblazeb2.com}
+      MIRROR_ACCESS_KEY: ${MIRROR_ACCESS_KEY}
+      MIRROR_SECRET_KEY: ${MIRROR_SECRET_KEY}
+
+      # App-specific bucket prefix
+      MIRROR_BUCKET_PREFIX: myapp-backup-
+
+      # PostgreSQL
+      POSTGRES_URL: postgres://myapp:myapp123@postgres:5432/myapp_s3_mirror?sslmode=disable
+
+      # Reduced logging for sidecar
+      LOG_LEVEL: error
+    ports:
+      - "8080:8080"  # Only for debugging, remove in production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Dedicated PostgreSQL for this app
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: myapp
+      POSTGRES_PASSWORD: myapp123
+      POSTGRES_DB: myapp_s3_mirror
+    volumes:
+      - myapp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  myapp_postgres_data:

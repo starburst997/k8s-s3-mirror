@@ -33,6 +33,7 @@ var (
 	mirrorSecretKey    string
 	mirrorBucketPrefix string
 	postgresURL        string
+	disableDatabase    bool
 
 	// Database connection pool
 	db *sql.DB
@@ -70,26 +71,56 @@ func init() {
 	mirrorAccessKey = getEnv("MIRROR_ACCESS_KEY")
 	mirrorSecretKey = getEnv("MIRROR_SECRET_KEY")
 	mirrorBucketPrefix = getEnvOrDefault("MIRROR_BUCKET_PREFIX", "")
-	postgresURL = getEnv("POSTGRES_URL")
+
+	// Check if database tracking should be disabled
+	disableDatabase = getEnvOrDefault("DISABLE_DATABASE", "false") == "true"
+
+	// Support both full POSTGRES_URL or separate components for easier sidecar config
+	if !disableDatabase {
+		postgresURL = getEnv("POSTGRES_URL")
+		if postgresURL == "" {
+			// Build URL from components if not provided
+			host := getEnvOrDefault("POSTGRES_HOST", "localhost")
+			port := getEnvOrDefault("POSTGRES_PORT", "5432")
+			user := getEnvOrDefault("POSTGRES_USER", "s3mirror")
+			password := getEnv("POSTGRES_PASSWORD")
+			database := getEnvOrDefault("POSTGRES_DB", "s3_mirror")
+			sslmode := getEnvOrDefault("POSTGRES_SSLMODE", "disable")
+
+			if password != "" {
+				postgresURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+					user, password, host, port, database, sslmode)
+			}
+		}
+	}
 
 	// Validate required environment variables
-	if mainAccessKey == "" || mainSecretKey == "" || mirrorS3Endpoint == "" || mirrorAccessKey == "" || mirrorSecretKey == "" || postgresURL == "" {
-		log.Fatal("Required environment variables not set: MAIN_ACCESS_KEY, MAIN_SECRET_KEY, MIRROR_S3_ENDPOINT, MIRROR_ACCESS_KEY, MIRROR_SECRET_KEY, POSTGRES_URL")
+	if mainAccessKey == "" || mainSecretKey == "" || mirrorS3Endpoint == "" || mirrorAccessKey == "" || mirrorSecretKey == "" {
+		log.Fatal("Required environment variables not set: MAIN_ACCESS_KEY, MAIN_SECRET_KEY, MIRROR_S3_ENDPOINT, MIRROR_ACCESS_KEY, MIRROR_SECRET_KEY")
+	}
+
+	if !disableDatabase && postgresURL == "" {
+		log.Fatal("POSTGRES_URL or POSTGRES_PASSWORD is required when database is enabled")
 	}
 }
 
 func main() {
-	// Initialize main database connection
-	var err error
-	db, err = sql.Open("postgres", postgresURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+	// Initialize main database connection if enabled
+	if !disableDatabase {
+		var err error
+		db, err = sql.Open("postgres", postgresURL)
+		if err != nil {
+			log.Fatalf("Failed to connect to database: %v", err)
+		}
+		defer db.Close()
 
-	// Test database connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		// Test database connection
+		if err := db.Ping(); err != nil {
+			log.Fatalf("Failed to ping database: %v", err)
+		}
+		log.Info("Database connection established")
+	} else {
+		log.Info("Database tracking disabled")
 	}
 
 	// Create main proxy
@@ -192,6 +223,15 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 }
 
 func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *http.Response) {
+	// Skip database operations if disabled
+	if disableDatabase {
+		// Just mirror to backup S3
+		if err := mirrorToBackupS3(bucket, key, req.Method, body, req.Header); err != nil {
+			log.Errorf("Failed to mirror to backup S3: %v", err)
+		}
+		return
+	}
+
 	// Get or create database connection for bucket
 	bucketDB := getOrCreateBucketDB(bucket)
 	if bucketDB == nil {
@@ -245,6 +285,15 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 }
 
 func handleDeleteRequest(bucket, key string, req *http.Request) {
+	// Skip database operations if disabled
+	if disableDatabase {
+		// Just mirror delete to backup S3
+		if err := mirrorToBackupS3(bucket, key, "DELETE", nil, req.Header); err != nil {
+			log.Errorf("Failed to mirror delete to backup S3: %v", err)
+		}
+		return
+	}
+
 	// Get database connection for bucket
 	bucketDB := getOrCreateBucketDB(bucket)
 	if bucketDB == nil {
@@ -440,6 +489,10 @@ func extractBucketAndKey(urlPath string) (string, string) {
 }
 
 func getOrCreateBucketDB(bucket string) *sql.DB {
+	if disableDatabase {
+		return nil
+	}
+
 	dbMutex.RLock()
 	if conn, exists := dbConnections[bucket]; exists {
 		dbMutex.RUnlock()
