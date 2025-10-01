@@ -44,7 +44,23 @@ var (
 func init() {
 	// Configure logging
 	log.SetFormatter(&log.JSONFormatter{})
-	log.SetLevel(log.InfoLevel)
+
+	// Set log level from environment
+	logLevel := getEnvOrDefault("LOG_LEVEL", "info")
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "warn", "warning":
+		log.SetLevel(log.WarnLevel)
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "fatal":
+		log.SetLevel(log.FatalLevel)
+	case "off", "disabled", "none":
+		log.SetLevel(log.PanicLevel) // Effectively disables logging except panics
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
 
 	// Load environment variables
 	mainS3Endpoint = getEnvOrDefault("MAIN_S3_ENDPOINT", "https://s3.amazonaws.com")
@@ -152,6 +168,9 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 
 	// Handle background operations for successful requests
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 && bucket != "" && key != "" {
+		// Only log successful operations at debug level to reduce log volume
+		log.Debugf("S3 operation: %s %s/%s - Status: %d", req.Method, bucket, key, resp.StatusCode)
+
 		go func() {
 			switch req.Method {
 			case "PUT", "POST":
@@ -160,6 +179,9 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 				handleDeleteRequest(bucket, key, req)
 			}
 		}()
+	} else if resp.StatusCode >= 400 {
+		// Only log errors
+		log.Errorf("S3 operation failed: %s %s/%s - Status: %d", req.Method, bucket, key, resp.StatusCode)
 	}
 }
 

@@ -82,6 +82,7 @@ MIRROR_S3_ENDPOINT  # Required: Mirror S3 endpoint
 MIRROR_ACCESS_KEY   # Required: Mirror S3 access key
 MIRROR_SECRET_KEY   # Required: Mirror S3 secret key
 POSTGRES_URL        # Required: PostgreSQL connection string
+LOG_LEVEL           # Optional: debug/info/warn/error/off (default: info)
 ```
 
 ## Database Schema

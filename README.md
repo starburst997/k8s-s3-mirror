@@ -215,6 +215,7 @@ svc := s3.New(sess)
 | `MIRROR_ACCESS_KEY`  | Mirror S3 access key         | Required                   |
 | `MIRROR_SECRET_KEY`  | Mirror S3 secret key         | Required                   |
 | `POSTGRES_URL`       | PostgreSQL connection string | Required                   |
+| `LOG_LEVEL`          | Logging level (debug/info/warn/error/off) | `info`      |
 
 ### Service Endpoints
 
@@ -367,15 +368,43 @@ The proxy adds minimal overhead since it streams data directly between your app 
 4. **Mirror failures**: Check mirror S3 credentials and endpoint
 5. **Path-style vs Virtual-host**: Ensure `forcePathStyle: true` is set in your S3 client
 
-### Debug Mode
+### Logging & Disk Usage
 
-Enable debug logging:
+The proxy logs to stdout/stderr, which Kubernetes captures. To prevent disk space issues:
 
+#### Option 1: Disable Logging Completely
+```yaml
+# In your deployment or values.yaml
+env:
+  - name: LOG_LEVEL
+    value: "off"
+```
+
+#### Option 2: Log Errors Only
 ```yaml
 env:
   - name: LOG_LEVEL
-    value: "debug"
+    value: "error"  # Only log errors and fatal issues
 ```
+
+#### Option 3: Configure Log Rotation in Kubernetes
+Configure your container runtime or logging driver to rotate logs automatically. For example, with Docker:
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+```
+
+**Log Levels Available:**
+- `debug` - Verbose logging including all operations
+- `info` - Standard logging (default)
+- `warn` - Warnings and above
+- `error` - Errors and fatal only
+- `off` - Disable all logging except panics
 
 ## Roadmap
 

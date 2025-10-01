@@ -49,6 +49,12 @@ postgresql:
   # Connection string - CHANGE THIS
   url: "postgres://username:password@postgres-host:5432/s3_mirror"
 
+# Logging Configuration
+logging:
+  # Log level: debug, info, warn, error, fatal, off
+  # Set to "error" or "off" to minimize disk usage
+  level: "info"
+
 
 # Pod configuration
 podAnnotations: {}

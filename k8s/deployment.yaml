@@ -59,6 +59,12 @@ spec:
             secretKeyRef:
               name: s3-proxy-secrets
               key: POSTGRES_URL
+        # Logging configuration (optional)
+        # Options: debug, info, warn, error, fatal, off
+        # - name: LOG_LEVEL
+        #   value: "error"  # Only log errors and fatals
+        # - name: LOG_LEVEL
+        #   value: "off"    # Disable logging completely
         resources:
           requests:
             memory: "128Mi"
