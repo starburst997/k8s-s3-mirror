@@ -1,7 +1,7 @@
 # K8S S3 Mirror
 
-![Build Status](https://github.com/jdboivin/k8s-s3-mirror/workflows/Build%20and%20Publish/badge.svg)
-![License](https://img.shields.io/github/license/jdboivin/k8s-s3-mirror)
+![Build Status](https://github.com/starburst997/k8s-s3-mirror/workflows/Build%20and%20Publish/badge.svg)
+![License](https://img.shields.io/github/license/starburst997/k8s-s3-mirror)
 ![Go Version](https://img.shields.io/badge/Go-1.21-blue)
 
 A high-performance Kubernetes-native S3 proxy that provides real-time mirroring and database tracking. Perfect for disaster recovery, cost optimization, and S3 usage analytics.
@@ -51,6 +51,7 @@ A high-performance Kubernetes-native S3 proxy that provides real-time mirroring 
 ```
 
 How it works:
+
 1. Your app connects to the proxy via simple HTTP (internal K8s traffic)
 2. The proxy authenticates and forwards requests to your main S3 over HTTPS
 3. Successful operations are asynchronously:
@@ -73,7 +74,7 @@ How it works:
 1. Add the Helm repository:
 
 ```bash
-helm repo add k8s-s3-mirror https://jdboivin.github.io/k8s-s3-mirror/charts
+helm repo add k8s-s3-mirror https://starburst997.github.io/k8s-s3-mirror/charts
 helm repo update
 ```
 
@@ -109,7 +110,7 @@ helm install s3-mirror k8s-s3-mirror/s3-mirror \
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/jdboivin/k8s-s3-mirror
+git clone https://github.com/starburst997/k8s-s3-mirror
 cd k8s-s3-mirror
 ```
 
@@ -132,6 +133,7 @@ kubectl apply -f k8s/
 ## Application Integration
 
 Simply update your S3 client configuration to point to the proxy service. The only changes needed:
+
 1. Change endpoint to `http://s3-proxy.s3-mirror.svc.cluster.local`
 2. Remove AWS credentials (proxy handles authentication)
 3. Enable path-style addressing (`forcePathStyle: true`)
@@ -150,8 +152,8 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 // After: pointing to the proxy
 const s3 = new S3Client({
   endpoint: "http://s3-proxy.s3-mirror.svc.cluster.local",
-  region: "us-east-1",  // Still needed for SDK
-  forcePathStyle: true,  // Important for proxy
+  region: "us-east-1", // Still needed for SDK
+  forcePathStyle: true, // Important for proxy
   // No credentials needed - proxy handles auth
 })
 
@@ -206,16 +208,16 @@ svc := s3.New(sess)
 
 ### Environment Variables
 
-| Variable             | Description                  | Default                    |
-| -------------------- | ---------------------------- | -------------------------- |
-| `MAIN_S3_ENDPOINT`   | Primary S3 endpoint          | `https://s3.amazonaws.com` |
-| `MAIN_ACCESS_KEY`    | Primary S3 access key        | Required                   |
-| `MAIN_SECRET_KEY`    | Primary S3 secret key        | Required                   |
-| `MIRROR_S3_ENDPOINT` | Mirror S3 endpoint           | Required                   |
-| `MIRROR_ACCESS_KEY`  | Mirror S3 access key         | Required                   |
-| `MIRROR_SECRET_KEY`  | Mirror S3 secret key         | Required                   |
-| `POSTGRES_URL`       | PostgreSQL connection string | Required                   |
-| `LOG_LEVEL`          | Logging level (debug/info/warn/error/off) | `info`      |
+| Variable             | Description                               | Default                    |
+| -------------------- | ----------------------------------------- | -------------------------- |
+| `MAIN_S3_ENDPOINT`   | Primary S3 endpoint                       | `https://s3.amazonaws.com` |
+| `MAIN_ACCESS_KEY`    | Primary S3 access key                     | Required                   |
+| `MAIN_SECRET_KEY`    | Primary S3 secret key                     | Required                   |
+| `MIRROR_S3_ENDPOINT` | Mirror S3 endpoint                        | Required                   |
+| `MIRROR_ACCESS_KEY`  | Mirror S3 access key                      | Required                   |
+| `MIRROR_SECRET_KEY`  | Mirror S3 secret key                      | Required                   |
+| `POSTGRES_URL`       | PostgreSQL connection string              | Required                   |
+| `LOG_LEVEL`          | Logging level (debug/info/warn/error/off) | `info`                     |
 
 ### Service Endpoints
 
@@ -305,7 +307,7 @@ Future versions will expose metrics at `/metrics`:
 
 ```bash
 # Clone the repository
-git clone https://github.com/jdboivin/k8s-s3-mirror
+git clone https://github.com/starburst997/k8s-s3-mirror
 cd k8s-s3-mirror
 
 # Install dependencies
@@ -373,6 +375,7 @@ The proxy adds minimal overhead since it streams data directly between your app 
 The proxy logs to stdout/stderr, which Kubernetes captures. To prevent disk space issues:
 
 #### Option 1: Disable Logging Completely
+
 ```yaml
 # In your deployment or values.yaml
 env:
@@ -381,14 +384,17 @@ env:
 ```
 
 #### Option 2: Log Errors Only
+
 ```yaml
 env:
   - name: LOG_LEVEL
-    value: "error"  # Only log errors and fatal issues
+    value: "error" # Only log errors and fatal issues
 ```
 
 #### Option 3: Configure Log Rotation in Kubernetes
+
 Configure your container runtime or logging driver to rotate logs automatically. For example, with Docker:
+
 ```json
 {
   "log-driver": "json-file",
@@ -400,6 +406,7 @@ Configure your container runtime or logging driver to rotate logs automatically.
 ```
 
 **Log Levels Available:**
+
 - `debug` - Verbose logging including all operations
 - `info` - Standard logging (default)
 - `warn` - Warnings and above
@@ -441,6 +448,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For issues, questions, or contributions, please:
 
-- Open an [issue](https://github.com/jdboivin/k8s-s3-mirror/issues)
-- Start a [discussion](https://github.com/jdboivin/k8s-s3-mirror/discussions)
-- Submit a [pull request](https://github.com/jdboivin/k8s-s3-mirror/pulls)
+- Open an [issue](https://github.com/starburst997/k8s-s3-mirror/issues)
+- Start a [discussion](https://github.com/starburst997/k8s-s3-mirror/discussions)
+- Submit a [pull request](https://github.com/starburst997/k8s-s3-mirror/pulls)

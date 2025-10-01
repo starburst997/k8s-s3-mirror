@@ -10,9 +10,9 @@ keywords:
   - mirror
   - backup
   - aws
-home: https://github.com/jdboivin/k8s-s3-mirror
+home: https://github.com/starburst997/k8s-s3-mirror
 sources:
-  - https://github.com/jdboivin/k8s-s3-mirror
+  - https://github.com/starburst997/k8s-s3-mirror
 maintainers:
-  - name: jdboivin
-    url: https://github.com/jdboivin
+  - name: starburst997
+    url: https://github.com/starburst997

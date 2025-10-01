@@ -3,7 +3,7 @@
 replicaCount: 3
 
 image:
-  repository: ghcr.io/jdboivin/k8s-s3-mirror
+  repository: ghcr.io/starburst997/k8s-s3-mirror
   pullPolicy: Always
   tag: "latest"
 
@@ -55,14 +55,15 @@ logging:
   # Set to "error" or "off" to minimize disk usage
   level: "info"
 
-
 # Pod configuration
 podAnnotations: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  {}
   # fsGroup: 2000
 
-securityContext: {}
+securityContext:
+  {}
   # capabilities:
   #   drop:
   #   - ALL

@@ -16,69 +16,69 @@ spec:
         app: s3-proxy
     spec:
       containers:
-      - name: s3-proxy
-        image: ghcr.io/jdboivin/k8s-s3-mirror:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP
-        env:
-        - name: MAIN_S3_ENDPOINT
-          valueFrom:
-            configMapKeyRef:
-              name: s3-proxy-config
-              key: MAIN_S3_ENDPOINT
-        - name: MAIN_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: s3-proxy-secrets
-              key: MAIN_ACCESS_KEY
-        - name: MAIN_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: s3-proxy-secrets
-              key: MAIN_SECRET_KEY
-        - name: MIRROR_S3_ENDPOINT
-          valueFrom:
-            configMapKeyRef:
-              name: s3-proxy-config
-              key: MIRROR_S3_ENDPOINT
-        - name: MIRROR_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: s3-proxy-secrets
-              key: MIRROR_ACCESS_KEY
-        - name: MIRROR_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: s3-proxy-secrets
-              key: MIRROR_SECRET_KEY
-        - name: POSTGRES_URL
-          valueFrom:
-            secretKeyRef:
-              name: s3-proxy-secrets
-              key: POSTGRES_URL
-        # Logging configuration (optional)
-        # Options: debug, info, warn, error, fatal, off
-        # - name: LOG_LEVEL
-        #   value: "error"  # Only log errors and fatals
-        # - name: LOG_LEVEL
-        #   value: "off"    # Disable logging completely
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          tcpSocket:
-            port: http
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          tcpSocket:
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: s3-proxy
+          image: ghcr.io/starburst997/k8s-s3-mirror:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: MAIN_S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-proxy-config
+                  key: MAIN_S3_ENDPOINT
+            - name: MAIN_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-proxy-secrets
+                  key: MAIN_ACCESS_KEY
+            - name: MAIN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-proxy-secrets
+                  key: MAIN_SECRET_KEY
+            - name: MIRROR_S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-proxy-config
+                  key: MIRROR_S3_ENDPOINT
+            - name: MIRROR_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-proxy-secrets
+                  key: MIRROR_ACCESS_KEY
+            - name: MIRROR_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-proxy-secrets
+                  key: MIRROR_SECRET_KEY
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: s3-proxy-secrets
+                  key: POSTGRES_URL
+          # Logging configuration (optional)
+          # Options: debug, info, warn, error, fatal, off
+          # - name: LOG_LEVEL
+          #   value: "error"  # Only log errors and fatals
+          # - name: LOG_LEVEL
+          #   value: "off"    # Disable logging completely
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
