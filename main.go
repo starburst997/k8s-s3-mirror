@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -252,9 +251,12 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 		contentType = "application/octet-stream"
 	}
 
+	// Get table name for this bucket
+	tableName := sanitizeDBName(bucket)
+
 	// Log to database
-	_, err := bucketDB.Exec(`
-		INSERT INTO files (path, size, content_type, is_backed_up, last_modified, deleted)
+	_, err := bucketDB.Exec(fmt.Sprintf(`
+		INSERT INTO %s (path, size, content_type, is_backed_up, last_modified, deleted)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (path)
 		DO UPDATE SET
@@ -263,7 +265,7 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 			is_backed_up = $4,
 			last_modified = $5,
 			deleted = $6
-	`, key, size, contentType, false, time.Now(), false)
+	`, tableName), key, size, contentType, false, time.Now(), false)
 
 	if err != nil {
 		log.Errorf("Failed to insert file record: %v", err)
@@ -275,9 +277,9 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 		log.Errorf("Failed to mirror to backup S3: %v", err)
 	} else {
 		// Mark as backed up
-		_, err = bucketDB.Exec(`
-			UPDATE files SET is_backed_up = true WHERE path = $1
-		`, key)
+		_, err = bucketDB.Exec(fmt.Sprintf(`
+			UPDATE %s SET is_backed_up = true WHERE path = $1
+		`, tableName), key)
 		if err != nil {
 			log.Errorf("Failed to update backup status: %v", err)
 		}
@@ -301,10 +303,13 @@ func handleDeleteRequest(bucket, key string, req *http.Request) {
 		return
 	}
 
+	// Get table name for this bucket
+	tableName := sanitizeDBName(bucket)
+
 	// Mark as deleted in database
-	_, err := bucketDB.Exec(`
-		UPDATE files SET deleted = true, last_modified = $1 WHERE path = $2
-	`, time.Now(), key)
+	_, err := bucketDB.Exec(fmt.Sprintf(`
+		UPDATE %s SET deleted = true, last_modified = $1 WHERE path = $2
+	`, tableName), time.Now(), key)
 
 	if err != nil {
 		log.Errorf("Failed to mark file as deleted: %v", err)
@@ -493,55 +498,21 @@ func getOrCreateBucketDB(bucket string) *sql.DB {
 		return nil
 	}
 
-	dbMutex.RLock()
-	if conn, exists := dbConnections[bucket]; exists {
-		dbMutex.RUnlock()
-		return conn
-	}
-	dbMutex.RUnlock()
+	// We use the main database connection for all buckets
+	// Each bucket gets its own table
+	tableName := sanitizeDBName(bucket)
 
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
 
-	// Check again after acquiring write lock
-	if conn, exists := dbConnections[bucket]; exists {
-		return conn
+	// Check if we already verified this bucket's table
+	if _, exists := dbConnections[bucket]; exists {
+		return db
 	}
 
-	// Create new database for bucket
-	dbName := fmt.Sprintf("s3_mirror_%s", sanitizeDBName(bucket))
-
-	// Create database if it doesn't exist
-	_, err := db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
-	if err != nil {
-		// PostgreSQL doesn't support IF NOT EXISTS, try alternative approach
-		var exists bool
-		err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", dbName).Scan(&exists)
-		if err != nil {
-			log.Errorf("Failed to check database existence: %v", err)
-			return nil
-		}
-
-		if !exists {
-			_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
-			if err != nil {
-				log.Errorf("Failed to create database: %v", err)
-				return nil
-			}
-		}
-	}
-
-	// Connect to bucket database
-	bucketDBURL := strings.Replace(postgresURL, path.Base(postgresURL), dbName, 1)
-	bucketDB, err := sql.Open("postgres", bucketDBURL)
-	if err != nil {
-		log.Errorf("Failed to connect to bucket database: %v", err)
-		return nil
-	}
-
-	// Create files table
-	_, err = bucketDB.Exec(`
-		CREATE TABLE IF NOT EXISTS files (
+	// Create table for this bucket if it doesn't exist
+	createTableSQL := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
 			path TEXT UNIQUE NOT NULL,
 			size BIGINT NOT NULL,
@@ -552,25 +523,39 @@ func getOrCreateBucketDB(bucket string) *sql.DB {
 			created_at TIMESTAMP DEFAULT NOW(),
 			updated_at TIMESTAMP DEFAULT NOW()
 		)
-	`)
+	`, tableName)
+
+	_, err := db.Exec(createTableSQL)
 	if err != nil {
-		log.Errorf("Failed to create files table: %v", err)
+		log.Errorf("Failed to create table %s: %v", tableName, err)
 		return nil
 	}
 
-	// Create indexes
-	bucketDB.Exec("CREATE INDEX IF NOT EXISTS idx_files_path ON files(path)")
-	bucketDB.Exec("CREATE INDEX IF NOT EXISTS idx_files_backup ON files(is_backed_up)")
-	bucketDB.Exec("CREATE INDEX IF NOT EXISTS idx_files_deleted ON files(deleted)")
+	// Create indexes for performance
+	indexCommands := []string{
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_path ON %s(path)", tableName, tableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_backup ON %s(is_backed_up)", tableName, tableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_deleted ON %s(deleted)", tableName, tableName),
+	}
 
-	dbConnections[bucket] = bucketDB
-	return bucketDB
+	for _, cmd := range indexCommands {
+		if _, err := db.Exec(cmd); err != nil {
+			log.Warnf("Failed to create index: %v", err)
+		}
+	}
+
+	// Mark that we've initialized this bucket's table
+	dbConnections[bucket] = db
+
+	log.Debugf("Created/verified table %s for bucket %s", tableName, bucket)
+	return db
 }
 
 func sanitizeDBName(name string) string {
-	// Replace non-alphanumeric characters with underscores
+	// Replace non-alphanumeric characters with underscores and prefix with bucket_
 	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
-	return reg.ReplaceAllString(name, "_")
+	sanitized := reg.ReplaceAllString(name, "_")
+	return "bucket_" + sanitized
 }
 
 func getEnv(key string) string {

@@ -354,10 +354,11 @@ No TLS/HTTPS configuration needed - the proxy handles secure connections to the 
 
 ## Database Schema
 
-The proxy creates one PostgreSQL database per S3 bucket with the following schema:
+The proxy uses a single PostgreSQL database with one table per S3 bucket. Table names are automatically generated as `bucket_<bucketname>` (with special characters replaced by underscores).
 
 ```sql
-CREATE TABLE files (
+-- Example: For bucket "my-data", the table would be "bucket_my_data"
+CREATE TABLE bucket_my_data (
     id SERIAL PRIMARY KEY,
     path TEXT UNIQUE NOT NULL,
     size BIGINT NOT NULL,
@@ -370,24 +371,46 @@ CREATE TABLE files (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_files_path ON files(path);
-CREATE INDEX idx_files_backup ON files(is_backed_up);
-CREATE INDEX idx_files_deleted ON files(deleted);
+CREATE INDEX idx_bucket_my_data_path ON bucket_my_data(path);
+CREATE INDEX idx_bucket_my_data_backup ON bucket_my_data(is_backed_up);
+CREATE INDEX idx_bucket_my_data_deleted ON bucket_my_data(deleted);
 ```
+
+### Table Naming Convention
+- Bucket names are prefixed with `bucket_`
+- Special characters are replaced with underscores
+- Examples:
+  - `my-data` → `bucket_my_data`
+  - `user.files` → `bucket_user_files`
+  - `backup-2024` → `bucket_backup_2024`
 
 ### Useful Queries
 
 ```sql
--- Files not yet backed up
-SELECT * FROM files WHERE is_backed_up = FALSE AND deleted = FALSE;
+-- List all bucket tables
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public' AND tablename LIKE 'bucket_%';
 
--- Total storage size
-SELECT SUM(size) as total_bytes FROM files WHERE deleted = FALSE;
+-- Files not yet backed up (replace bucket_my_data with your table)
+SELECT * FROM bucket_my_data
+WHERE is_backed_up = FALSE AND deleted = FALSE;
 
--- Files by type
+-- Total storage size for a bucket
+SELECT SUM(size) as total_bytes
+FROM bucket_my_data WHERE deleted = FALSE;
+
+-- Files by type for a bucket
 SELECT content_type, COUNT(*), SUM(size) as total_size
-FROM files WHERE deleted = FALSE
+FROM bucket_my_data WHERE deleted = FALSE
 GROUP BY content_type;
+
+-- Check all buckets backup status (PostgreSQL 9.4+)
+SELECT
+    tablename AS bucket,
+    (SELECT COUNT(*) FROM public.tablename WHERE NOT is_backed_up) as pending_backup,
+    (SELECT COUNT(*) FROM public.tablename WHERE deleted) as deleted_files
+FROM pg_tables
+WHERE schemaname = 'public' AND tablename LIKE 'bucket_%';
 ```
 
 ## Monitoring
