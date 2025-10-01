@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
@@ -96,6 +95,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to parse main S3 endpoint: %v", err)
 	}
+
+	// Create HTTP handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleProxyRequest(w, r, targetURL)
+	})
 
 	// Simple HTTP server
 	server := &http.Server{
