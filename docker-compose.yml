@@ -36,7 +36,7 @@ services:
       MIRROR_SECRET_KEY: ${MIRROR_SECRET_KEY}
 
       # Optional: Prefix for mirror bucket names (e.g., "mirror-" will make bucket "a" become "mirror-a")
-      MIRROR_BUCKET_PREFIX: ${MIRROR_BUCKET_PREFIX:-}
+      MIRROR_BUCKET_PREFIX: ${MIRROR_BUCKET_PREFIX}
 
       # PostgreSQL connection
       POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3_mirror?sslmode=disable
@@ -48,22 +48,22 @@ services:
     command: ["/app/s3-proxy"]
 
   # Optional: MinIO for local S3 testing
-  minio:
-    image: minio/minio:latest
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  #minio:
+  #  image: minio/minio:latest
+  #  ports:
+  #    - "9000:9000"
+  #    - "9001:9001"
+  #  environment:
+  #    MINIO_ROOT_USER: minioadmin
+  #    MINIO_ROOT_PASSWORD: minioadmin
+  #  command: server /data --console-address ":9001"
+  #  volumes:
+  #    - minio_data:/data
+  #  healthcheck:
+  #    test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #    interval: 5s
+  #    timeout: 5s
+  #    retries: 5
 
   # Test client for testing the proxy
   test-client:
