@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/tls"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -28,6 +27,8 @@ import (
 var (
 	// Environment variables
 	mainS3Endpoint   string
+	mainAccessKey    string
+	mainSecretKey    string
 	mirrorS3Endpoint string
 	mirrorAccessKey  string
 	mirrorSecretKey  string
@@ -47,14 +48,16 @@ func init() {
 
 	// Load environment variables
 	mainS3Endpoint = getEnvOrDefault("MAIN_S3_ENDPOINT", "https://s3.amazonaws.com")
+	mainAccessKey = getEnv("MAIN_ACCESS_KEY")
+	mainSecretKey = getEnv("MAIN_SECRET_KEY")
 	mirrorS3Endpoint = getEnv("MIRROR_S3_ENDPOINT")
 	mirrorAccessKey = getEnv("MIRROR_ACCESS_KEY")
 	mirrorSecretKey = getEnv("MIRROR_SECRET_KEY")
 	postgresURL = getEnv("POSTGRES_URL")
 
 	// Validate required environment variables
-	if mirrorS3Endpoint == "" || mirrorAccessKey == "" || mirrorSecretKey == "" || postgresURL == "" {
-		log.Fatal("Required environment variables not set: MIRROR_S3_ENDPOINT, MIRROR_ACCESS_KEY, MIRROR_SECRET_KEY, POSTGRES_URL")
+	if mainAccessKey == "" || mainSecretKey == "" || mirrorS3Endpoint == "" || mirrorAccessKey == "" || mirrorSecretKey == "" || postgresURL == "" {
+		log.Fatal("Required environment variables not set: MAIN_ACCESS_KEY, MAIN_SECRET_KEY, MIRROR_S3_ENDPOINT, MIRROR_ACCESS_KEY, MIRROR_SECRET_KEY, POSTGRES_URL")
 	}
 }
 
@@ -78,84 +81,85 @@ func main() {
 		log.Fatalf("Failed to parse main S3 endpoint: %v", err)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	proxy.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		MaxIdleConns:    100,
-		IdleConnTimeout: 90 * time.Second,
-	}
-
-	// Customize proxy behavior
-	defaultDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		// Store original request body for mirror
-		var bodyBytes []byte
-		if req.Body != nil {
-			bodyBytes, _ = io.ReadAll(req.Body)
-			req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		}
-		req.Header.Set("X-Original-Body", hex.EncodeToString(bodyBytes))
-
-		defaultDirector(req)
-		req.Host = targetURL.Host
-		req.URL.Scheme = targetURL.Scheme
-		req.URL.Host = targetURL.Host
-	}
-
-	// Handle response for background operations
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		// Only process successful responses
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			// Extract request info
-			req := resp.Request
-			bucket, key := extractBucketAndKey(req.URL.Path)
-
-			if bucket != "" && key != "" {
-				// Get original body
-				bodyHex := req.Header.Get("X-Original-Body")
-				var body []byte
-				if bodyHex != "" {
-					body, _ = hex.DecodeString(bodyHex)
-				}
-
-				// Async database and mirror operations
-				go func() {
-					// Handle based on method
-					switch req.Method {
-					case "PUT", "POST":
-						handlePutRequest(bucket, key, req, body, resp)
-					case "DELETE":
-						handleDeleteRequest(bucket, key, req)
-					}
-				}()
-			}
-		}
-		return nil
-	}
-
-	// Create HTTPS server with self-signed certificate support
+	// Simple HTTP server
 	server := &http.Server{
-		Addr:    ":8443",
-		Handler: proxy,
-		TLSConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		},
+		Addr:    ":8080",
+		Handler: handler,
 	}
 
-	// Generate self-signed certificate if not provided
-	certFile := getEnvOrDefault("TLS_CERT_FILE", "/tmp/server.crt")
-	keyFile := getEnvOrDefault("TLS_KEY_FILE", "/tmp/server.key")
+	log.Info("Starting S3 proxy server on :8080...")
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
 
-	if _, err := os.Stat(certFile); os.IsNotExist(err) {
-		log.Info("Generating self-signed certificate...")
-		if err := generateSelfSignedCert(certFile, keyFile); err != nil {
-			log.Fatalf("Failed to generate certificate: %v", err)
+func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url.URL) {
+	// Read the request body
+	var bodyBytes []byte
+	if req.Body != nil {
+		bodyBytes, _ = io.ReadAll(req.Body)
+		req.Body.Close()
+	}
+
+	// Extract bucket and key for logging
+	bucket, key := extractBucketAndKey(req.URL.Path)
+
+	// Create new request to forward to main S3
+	forwardURL := *targetURL
+	forwardURL.Path = req.URL.Path
+	forwardURL.RawQuery = req.URL.RawQuery
+
+	forwardReq, err := http.NewRequest(req.Method, forwardURL.String(), bytes.NewReader(bodyBytes))
+	if err != nil {
+		http.Error(w, "Failed to create forward request", http.StatusInternalServerError)
+		return
+	}
+
+	// Copy relevant headers
+	for k, v := range req.Header {
+		if strings.HasPrefix(k, "Content-") || strings.HasPrefix(k, "X-Amz-") {
+			forwardReq.Header[k] = v
 		}
 	}
 
-	log.Info("Starting S3 proxy server on :8443...")
-	if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// Sign the request with main S3 credentials
+	signRequestV4(forwardReq, mainAccessKey, mainSecretKey, "us-east-1", "s3", bodyBytes)
+
+	// Forward the request
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Do(forwardReq)
+	if err != nil {
+		http.Error(w, "Failed to forward request to S3", http.StatusBadGateway)
+		log.Errorf("Failed to forward request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+	}
+
+	// Set status code
+	w.WriteHeader(resp.StatusCode)
+
+	// Copy response body
+	respBody, _ := io.ReadAll(resp.Body)
+	w.Write(respBody)
+
+	// Handle background operations for successful requests
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 && bucket != "" && key != "" {
+		go func() {
+			switch req.Method {
+			case "PUT", "POST":
+				handlePutRequest(bucket, key, req, bodyBytes, resp)
+			case "DELETE":
+				handleDeleteRequest(bucket, key, req)
+			}
+		}()
 	}
 }
 
@@ -263,9 +267,6 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 	// Send request
 	client := &http.Client{
 		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
 	}
 
 	resp, err := client.Do(req)
@@ -482,22 +483,6 @@ func sanitizeDBName(name string) string {
 	// Replace non-alphanumeric characters with underscores
 	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
 	return reg.ReplaceAllString(name, "_")
-}
-
-func generateSelfSignedCert(certFile, keyFile string) error {
-	// For production, use proper certificate generation
-	// This is a placeholder - in production, certificates should be mounted via Kubernetes secrets
-	log.Warn("Using self-signed certificate. For production, use proper TLS certificates via Kubernetes secrets.")
-
-	// Create dummy files for now
-	if err := os.WriteFile(certFile, []byte("dummy-cert"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(keyFile, []byte("dummy-key"), 0644); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getEnv(key string) string {

@@ -14,7 +14,7 @@ spec:
   - port: {{ .Values.service.port }}
     targetPort: {{ .Values.service.targetPort }}
     protocol: TCP
-    name: https
+    name: http
   selector:
     {{- include "s3-mirror.selectorLabels" . | nindent 4 }}
   sessionAffinity: None

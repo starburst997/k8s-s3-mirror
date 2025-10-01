@@ -20,8 +20,8 @@ spec:
         image: ghcr.io/jdboivin/k8s-s3-mirror:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8443
-          name: https
+        - containerPort: 8080
+          name: http
           protocol: TCP
         env:
         - name: MAIN_S3_ENDPOINT
@@ -29,6 +29,16 @@ spec:
             configMapKeyRef:
               name: s3-proxy-config
               key: MAIN_S3_ENDPOINT
+        - name: MAIN_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-proxy-secrets
+              key: MAIN_ACCESS_KEY
+        - name: MAIN_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-proxy-secrets
+              key: MAIN_SECRET_KEY
         - name: MIRROR_S3_ENDPOINT
           valueFrom:
             configMapKeyRef:
@@ -49,17 +59,6 @@ spec:
             secretKeyRef:
               name: s3-proxy-secrets
               key: POSTGRES_URL
-        - name: TLS_CERT_FILE
-          value: /etc/ssl/certs/tls.crt
-        - name: TLS_KEY_FILE
-          value: /etc/ssl/private/tls.key
-        volumeMounts:
-        - name: tls-certs
-          mountPath: /etc/ssl/certs
-          readOnly: true
-        - name: tls-keys
-          mountPath: /etc/ssl/private
-          readOnly: true
         resources:
           requests:
             memory: "128Mi"
@@ -69,24 +68,11 @@ spec:
             cpu: "500m"
         livenessProbe:
           tcpSocket:
-            port: https
+            port: http
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           tcpSocket:
-            port: https
+            port: http
           initialDelaySeconds: 5
           periodSeconds: 5
-      volumes:
-      - name: tls-certs
-        secret:
-          secretName: s3-proxy-tls
-          items:
-          - key: tls.crt
-            path: tls.crt
-      - name: tls-keys
-        secret:
-          secretName: s3-proxy-tls
-          items:
-          - key: tls.key
-            path: tls.key

@@ -4,7 +4,16 @@ metadata:
   name: s3-proxy-config
   namespace: s3-mirror
 data:
-  # Main S3 endpoint (AWS)
+  # Main S3 endpoint - this is what your apps currently use
+  # Examples:
+  # - AWS S3: https://s3.amazonaws.com
+  # - MinIO: https://minio.example.com
+  # - Wasabi: https://s3.wasabisys.com
   MAIN_S3_ENDPOINT: "https://s3.amazonaws.com"
-  # Mirror S3 endpoint (e.g., Backblaze B2, Wasabi, MinIO, etc.)
+
+  # Mirror S3 endpoint - where to replicate data for backup
+  # Examples:
+  # - Backblaze B2: https://s3.us-west-000.backblazeb2.com
+  # - Wasabi: https://s3.eu-central-1.wasabisys.com
+  # - MinIO: https://backup-minio.example.com
   MIRROR_S3_ENDPOINT: "https://s3.us-west-000.backblazeb2.com"

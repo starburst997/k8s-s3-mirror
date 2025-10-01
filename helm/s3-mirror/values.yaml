@@ -11,10 +11,10 @@ imagePullSecrets: []
 
 service:
   type: ClusterIP
-  port: 443
-  targetPort: 8443
-  # Fixed ClusterIP for hostAliases - change this to match your cluster's service CIDR
-  clusterIP: 10.96.100.100
+  port: 80
+  targetPort: 8080
+  # Optional: Set a fixed ClusterIP if you still want to use hostAliases
+  # clusterIP: 10.96.100.100
 
 resources:
   limits:
@@ -26,11 +26,21 @@ resources:
 
 # S3 Configuration
 s3:
-  # Main S3 endpoint (AWS)
+  # Main S3 endpoint - the S3 service your applications currently use
+  # This can be ANY S3-compatible service (AWS S3, MinIO, Wasabi, etc.)
   mainEndpoint: "https://s3.amazonaws.com"
-  # Mirror S3 endpoint (e.g., Backblaze B2, Wasabi, MinIO)
+
+  # Main S3 credentials - CHANGE THESE
+  # The proxy uses these to access your primary S3
+  mainAccessKey: "your-main-s3-access-key"
+  mainSecretKey: "your-main-s3-secret-key"
+
+  # Mirror S3 endpoint - where to replicate data for backup
+  # Can be any S3-compatible service different from the main endpoint
   mirrorEndpoint: "https://s3.us-west-000.backblazeb2.com"
+
   # Mirror S3 credentials - CHANGE THESE
+  # Used for the backup S3
   mirrorAccessKey: "your-mirror-access-key"
   mirrorSecretKey: "your-mirror-secret-key"
 
@@ -39,14 +49,6 @@ postgresql:
   # Connection string - CHANGE THIS
   url: "postgres://username:password@postgres-host:5432/s3_mirror"
 
-# TLS Configuration
-tls:
-  # Set to true to use existing secret
-  existingSecret: false
-  # Name of existing secret containing tls.crt and tls.key
-  secretName: s3-proxy-tls
-  # If not using existing secret, generate self-signed cert
-  generateSelfSigned: true
 
 # Pod configuration
 podAnnotations: {}
