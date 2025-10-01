@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-proxy
+  namespace: s3-mirror
+  labels:
+    app: s3-proxy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: s3-proxy
+  template:
+    metadata:
+      labels:
+        app: s3-proxy
+    spec:
+      containers:
+      - name: s3-proxy
+        image: ghcr.io/jdboivin/k8s-s3-mirror:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        env:
+        - name: MAIN_S3_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: s3-proxy-config
+              key: MAIN_S3_ENDPOINT
+        - name: MIRROR_S3_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: s3-proxy-config
+              key: MIRROR_S3_ENDPOINT
+        - name: MIRROR_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-proxy-secrets
+              key: MIRROR_ACCESS_KEY
+        - name: MIRROR_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-proxy-secrets
+              key: MIRROR_SECRET_KEY
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: s3-proxy-secrets
+              key: POSTGRES_URL
+        - name: TLS_CERT_FILE
+          value: /etc/ssl/certs/tls.crt
+        - name: TLS_KEY_FILE
+          value: /etc/ssl/private/tls.key
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: tls-keys
+          mountPath: /etc/ssl/private
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: https
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: https
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: s3-proxy-tls
+          items:
+          - key: tls.crt
+            path: tls.crt
+      - name: tls-keys
+        secret:
+          secretName: s3-proxy-tls
+          items:
+          - key: tls.key
+            path: tls.key

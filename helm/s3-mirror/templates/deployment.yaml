@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "s3-mirror.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "s3-mirror.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "s3-mirror.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "s3-mirror.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: https
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: MAIN_S3_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "s3-mirror.fullname" . }}-config
+              key: MAIN_S3_ENDPOINT
+        - name: MIRROR_S3_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "s3-mirror.fullname" . }}-config
+              key: MIRROR_S3_ENDPOINT
+        - name: MIRROR_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "s3-mirror.fullname" . }}-secrets
+              key: MIRROR_ACCESS_KEY
+        - name: MIRROR_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "s3-mirror.fullname" . }}-secrets
+              key: MIRROR_SECRET_KEY
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "s3-mirror.fullname" . }}-secrets
+              key: POSTGRES_URL
+        {{- if .Values.tls.existingSecret }}
+        - name: TLS_CERT_FILE
+          value: /etc/ssl/certs/tls.crt
+        - name: TLS_KEY_FILE
+          value: /etc/ssl/private/tls.key
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: tls-keys
+          mountPath: /etc/ssl/private
+          readOnly: true
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        livenessProbe:
+          tcpSocket:
+            port: https
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: https
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      {{- if .Values.tls.existingSecret }}
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: {{ .Values.tls.secretName }}
+          items:
+          - key: tls.crt
+            path: tls.crt
+      - name: tls-keys
+        secret:
+          secretName: {{ .Values.tls.secretName }}
+          items:
+          - key: tls.key
+            path: tls.key
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

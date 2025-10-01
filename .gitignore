@@ -1,0 +1,56 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go binary
+s3-proxy
+cert-gen
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go vendor directory
+vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# Kubernetes secrets
+k8s/secret.yaml.local
+secrets/
+
+# TLS certificates
+*.crt
+*.key
+*.pem
+
+# Helm package files
+*.tgz
+charts/
+
+# Build directories
+bin/
+dist/
+build/
+
+# Docker files
+.dockerignore.local

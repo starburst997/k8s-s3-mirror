@@ -1,0 +1,18 @@
+apiVersion: v2
+name: s3-mirror
+description: A Kubernetes S3 proxy with real-time mirroring and database tracking
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - s3
+  - proxy
+  - mirror
+  - backup
+  - aws
+home: https://github.com/jdboivin/k8s-s3-mirror
+sources:
+  - https://github.com/jdboivin/k8s-s3-mirror
+maintainers:
+  - name: jdboivin
+    url: https://github.com/jdboivin

@@ -1,0 +1,77 @@
+# Default values for s3-mirror
+
+replicaCount: 3
+
+image:
+  repository: ghcr.io/jdboivin/k8s-s3-mirror
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 443
+  targetPort: 8443
+  # Fixed ClusterIP for hostAliases - change this to match your cluster's service CIDR
+  clusterIP: 10.96.100.100
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# S3 Configuration
+s3:
+  # Main S3 endpoint (AWS)
+  mainEndpoint: "https://s3.amazonaws.com"
+  # Mirror S3 endpoint (e.g., Backblaze B2, Wasabi, MinIO)
+  mirrorEndpoint: "https://s3.us-west-000.backblazeb2.com"
+  # Mirror S3 credentials - CHANGE THESE
+  mirrorAccessKey: "your-mirror-access-key"
+  mirrorSecretKey: "your-mirror-secret-key"
+
+# PostgreSQL Configuration
+postgresql:
+  # Connection string - CHANGE THIS
+  url: "postgres://username:password@postgres-host:5432/s3_mirror"
+
+# TLS Configuration
+tls:
+  # Set to true to use existing secret
+  existingSecret: false
+  # Name of existing secret containing tls.crt and tls.key
+  secretName: s3-proxy-tls
+  # If not using existing secret, generate self-signed cert
+  generateSelfSigned: true
+
+# Pod configuration
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

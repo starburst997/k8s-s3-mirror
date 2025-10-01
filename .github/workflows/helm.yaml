@@ -1,0 +1,48 @@
+name: Release Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'helm/**'
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/s3-mirror
+
+      - name: Create gh-pages branch if not exists
+        run: |
+          git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
+          git reset --hard origin/main
+          git clean -fdx
+
+      - name: Update Helm repository
+        run: |
+          mkdir -p charts
+          mv s3-mirror-*.tgz charts/
+          helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts
+          git add charts
+          git commit -m "Update Helm chart"
+          git push origin gh-pages --force
