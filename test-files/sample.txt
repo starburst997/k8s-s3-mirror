@@ -1,0 +1,12 @@
+This is a sample test file for the S3 proxy.
+It contains multiple lines to test the upload functionality.
+
+Created for testing the K8s S3 Mirror proxy locally.
+
+You can use this file to test:
+- Upload operations
+- Download operations
+- Mirror functionality
+- Database tracking
+
+Test data: Lorem ipsum dolor sit amet, consectetur adipiscing elit.

@@ -1,0 +1,79 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: s3mirror
+      POSTGRES_PASSWORD: s3mirror123
+      POSTGRES_DB: s3_mirror
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U s3mirror"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  s3-proxy:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # Main S3 - Using AWS S3 (change these to your test bucket credentials)
+      MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT}
+      MAIN_ACCESS_KEY: ${MAIN_ACCESS_KEY}
+      MAIN_SECRET_KEY: ${MAIN_SECRET_KEY}
+
+      # Mirror S3 - Using a different endpoint (e.g., MinIO, Backblaze, etc.)
+      MIRROR_S3_ENDPOINT: ${MIRROR_S3_ENDPOINT}
+      MIRROR_ACCESS_KEY: ${MIRROR_ACCESS_KEY}
+      MIRROR_SECRET_KEY: ${MIRROR_SECRET_KEY}
+
+      # PostgreSQL connection
+      POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3_mirror?sslmode=disable
+
+      # Enable debug logging for testing
+      LOG_LEVEL: debug
+    volumes:
+      - ./:/app
+    command: ["/app/s3-proxy"]
+
+  # Optional: MinIO for local S3 testing
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Test client for testing the proxy
+  test-client:
+    build: ./test-client
+    depends_on:
+      - s3-proxy
+    environment:
+      S3_PROXY_ENDPOINT: http://s3-proxy:8080
+    volumes:
+      - ./test-client:/app
+      - ./test-files:/test-files
+    command: tail -f /dev/null # Keep container running
+
+volumes:
+  postgres_data:
+  minio_data:

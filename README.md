@@ -303,6 +303,126 @@ Future versions will expose metrics at `/metrics`:
 
 ## Development
 
+### Local Testing with Docker Compose
+
+The easiest way to test the S3 proxy locally is using Docker Compose, which sets up:
+- PostgreSQL database
+- S3 Proxy service
+- MinIO (local S3-compatible storage)
+- Node.js test client
+
+#### Quick Start
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/starburst997/k8s-s3-mirror
+cd k8s-s3-mirror
+```
+
+2. **Copy environment file and update credentials (optional):**
+```bash
+cp .env.example .env
+# Edit .env with your actual S3 credentials, or use MinIO for fully local testing
+```
+
+3. **Build and start the services:**
+```bash
+docker-compose up --build
+```
+
+4. **Run tests using the test client:**
+```bash
+# Run the full test suite
+docker-compose exec test-client node index.js test my-test-bucket
+
+# Or run individual commands:
+# Upload a file
+docker-compose exec test-client node index.js upload my-bucket test.txt /test-files/sample.txt
+
+# List files
+docker-compose exec test-client node index.js list my-bucket
+
+# Download a file
+docker-compose exec test-client node index.js download my-bucket test.txt /tmp/downloaded.txt
+
+# Delete a file
+docker-compose exec test-client node index.js delete my-bucket test.txt
+```
+
+5. **Check the logs:**
+```bash
+# View proxy logs (with debug level enabled)
+docker-compose logs -f s3-proxy
+
+# View PostgreSQL to verify database creation
+docker-compose exec postgres psql -U s3mirror -d s3_mirror -c "\l"
+```
+
+6. **Access MinIO console (if using MinIO for testing):**
+- URL: http://localhost:9001
+- Username: minioadmin
+- Password: minioadmin
+
+#### Using MinIO for Fully Local Testing
+
+To test without any external S3 services, configure both main and mirror to use MinIO:
+
+1. Update your `.env` file:
+```bash
+MAIN_S3_ENDPOINT=http://minio:9000
+MAIN_ACCESS_KEY=minioadmin
+MAIN_SECRET_KEY=minioadmin
+MIRROR_S3_ENDPOINT=http://minio:9000
+MIRROR_ACCESS_KEY=minioadmin
+MIRROR_SECRET_KEY=minioadmin
+```
+
+2. Create buckets in MinIO:
+```bash
+# Access MinIO console at http://localhost:9001
+# Create two buckets: 'main-bucket' and 'mirror-bucket'
+```
+
+3. Run tests:
+```bash
+docker-compose exec test-client node index.js test main-bucket
+```
+
+#### Test Client CLI Commands
+
+The test client (`test-client/index.js`) provides the following commands:
+
+```bash
+# Upload a file
+node index.js upload <bucket> <key> <file>
+
+# Download a file
+node index.js download <bucket> <key> <output>
+
+# Delete a file
+node index.js delete <bucket> <key>
+
+# List files in bucket
+node index.js list <bucket> [prefix]
+
+# Run full test suite
+node index.js test <bucket>
+```
+
+#### Verifying the Mirror Works
+
+1. Upload a file through the proxy:
+```bash
+docker-compose exec test-client node index.js upload test-bucket myfile.txt /test-files/sample.txt
+```
+
+2. Check PostgreSQL for the file record:
+```bash
+docker-compose exec postgres psql -U s3mirror -d s3_mirror_test_bucket -c "SELECT * FROM files;"
+```
+
+3. Verify the file exists in both main and mirror S3 (check your S3 consoles or use AWS CLI)
+
 ### Building from Source
 
 ```bash
