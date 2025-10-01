@@ -45,7 +45,7 @@ git clone https://github.com/your-username/k8s-s3-mirror
 cd k8s-s3-mirror
 
 # Add upstream remote
-git remote add upstream https://github.com/jdboivin/k8s-s3-mirror
+git remote add upstream https://github.com/starburst997/k8s-s3-mirror
 
 # Install dependencies
 go mod download
