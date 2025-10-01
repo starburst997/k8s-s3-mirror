@@ -8,3 +8,4 @@ metadata:
 data:
   MAIN_S3_ENDPOINT: {{ .Values.s3.mainEndpoint | quote }}
   MIRROR_S3_ENDPOINT: {{ .Values.s3.mirrorEndpoint | quote }}
+  MIRROR_BUCKET_PREFIX: {{ .Values.s3.mirrorBucketPrefix | quote }}

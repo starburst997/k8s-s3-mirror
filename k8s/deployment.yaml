@@ -59,6 +59,11 @@ spec:
                 secretKeyRef:
                   name: s3-proxy-secrets
                   key: POSTGRES_URL
+            - name: MIRROR_BUCKET_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-proxy-config
+                  key: MIRROR_BUCKET_PREFIX
           # Logging configuration (optional)
           # Options: debug, info, warn, error, fatal, off
           # - name: LOG_LEVEL

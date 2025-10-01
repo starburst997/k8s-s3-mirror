@@ -25,13 +25,14 @@ import (
 
 var (
 	// Environment variables
-	mainS3Endpoint   string
-	mainAccessKey    string
-	mainSecretKey    string
-	mirrorS3Endpoint string
-	mirrorAccessKey  string
-	mirrorSecretKey  string
-	postgresURL      string
+	mainS3Endpoint     string
+	mainAccessKey      string
+	mainSecretKey      string
+	mirrorS3Endpoint   string
+	mirrorAccessKey    string
+	mirrorSecretKey    string
+	mirrorBucketPrefix string
+	postgresURL        string
 
 	// Database connection pool
 	db *sql.DB
@@ -68,6 +69,7 @@ func init() {
 	mirrorS3Endpoint = getEnv("MIRROR_S3_ENDPOINT")
 	mirrorAccessKey = getEnv("MIRROR_ACCESS_KEY")
 	mirrorSecretKey = getEnv("MIRROR_SECRET_KEY")
+	mirrorBucketPrefix = getEnvOrDefault("MIRROR_BUCKET_PREFIX", "")
 	postgresURL = getEnv("POSTGRES_URL")
 
 	// Validate required environment variables
@@ -267,12 +269,19 @@ func handleDeleteRequest(bucket, key string, req *http.Request) {
 }
 
 func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Header) error {
+	// Apply bucket prefix if configured
+	mirrorBucket := bucket
+	if mirrorBucketPrefix != "" {
+		mirrorBucket = mirrorBucketPrefix + bucket
+		log.Debugf("Mirroring to prefixed bucket: %s (original: %s)", mirrorBucket, bucket)
+	}
+
 	// Construct mirror URL
 	mirrorURL, err := url.Parse(mirrorS3Endpoint)
 	if err != nil {
 		return err
 	}
-	mirrorURL.Path = fmt.Sprintf("/%s/%s", bucket, key)
+	mirrorURL.Path = fmt.Sprintf("/%s/%s", mirrorBucket, key)
 
 	// Create new request for mirror
 	req, err := http.NewRequest(method, mirrorURL.String(), bytes.NewReader(body))

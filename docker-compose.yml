@@ -35,6 +35,9 @@ services:
       MIRROR_ACCESS_KEY: ${MIRROR_ACCESS_KEY}
       MIRROR_SECRET_KEY: ${MIRROR_SECRET_KEY}
 
+      # Optional: Prefix for mirror bucket names (e.g., "mirror-" will make bucket "a" become "mirror-a")
+      MIRROR_BUCKET_PREFIX: ${MIRROR_BUCKET_PREFIX:-}
+
       # PostgreSQL connection
       POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3_mirror?sslmode=disable
 

@@ -44,6 +44,11 @@ s3:
   mirrorAccessKey: "your-mirror-access-key"
   mirrorSecretKey: "your-mirror-secret-key"
 
+  # Optional: Prefix for mirror bucket names
+  # Example: "mirror-" will make bucket "my-data" become "mirror-my-data"
+  # Leave empty for no prefix
+  mirrorBucketPrefix: ""
+
 # PostgreSQL Configuration
 postgresql:
   # Connection string - CHANGE THIS

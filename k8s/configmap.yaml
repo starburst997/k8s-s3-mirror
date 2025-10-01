@@ -17,3 +17,8 @@ data:
   # - Wasabi: https://s3.eu-central-1.wasabisys.com
   # - MinIO: https://backup-minio.example.com
   MIRROR_S3_ENDPOINT: "https://s3.us-west-000.backblazeb2.com"
+
+  # Optional: Prefix for mirror bucket names
+  # Example: "mirror-" will make bucket "my-data" become "mirror-my-data"
+  # Leave empty for no prefix
+  MIRROR_BUCKET_PREFIX: ""

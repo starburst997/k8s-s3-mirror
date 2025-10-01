@@ -213,11 +213,27 @@ svc := s3.New(sess)
 | `MAIN_S3_ENDPOINT`   | Primary S3 endpoint                       | `https://s3.amazonaws.com` |
 | `MAIN_ACCESS_KEY`    | Primary S3 access key                     | Required                   |
 | `MAIN_SECRET_KEY`    | Primary S3 secret key                     | Required                   |
-| `MIRROR_S3_ENDPOINT` | Mirror S3 endpoint                        | Required                   |
-| `MIRROR_ACCESS_KEY`  | Mirror S3 access key                      | Required                   |
-| `MIRROR_SECRET_KEY`  | Mirror S3 secret key                      | Required                   |
-| `POSTGRES_URL`       | PostgreSQL connection string              | Required                   |
-| `LOG_LEVEL`          | Logging level (debug/info/warn/error/off) | `info`                     |
+| `MIRROR_S3_ENDPOINT`    | Mirror S3 endpoint                                   | Required                   |
+| `MIRROR_ACCESS_KEY`     | Mirror S3 access key                                 | Required                   |
+| `MIRROR_SECRET_KEY`     | Mirror S3 secret key                                 | Required                   |
+| `MIRROR_BUCKET_PREFIX`  | Optional prefix for mirror bucket names (e.g. "mirror-") | Empty (no prefix)      |
+| `POSTGRES_URL`          | PostgreSQL connection string                         | Required                   |
+| `LOG_LEVEL`             | Logging level (debug/info/warn/error/off)            | `info`                     |
+
+### Bucket Prefix for Mirroring
+
+The `MIRROR_BUCKET_PREFIX` environment variable allows you to automatically prefix bucket names when mirroring to the backup S3. This is useful when:
+
+- You want to distinguish mirrored buckets from original ones
+- Your mirror S3 provider has naming requirements
+- You need to avoid bucket name conflicts
+
+**Example:**
+- If `MIRROR_BUCKET_PREFIX=mirror-`
+- Main bucket: `my-data`
+- Mirror bucket: `mirror-my-data`
+
+This happens transparently - your applications don't need to know about the prefix.
 
 ### Service Endpoints
 
