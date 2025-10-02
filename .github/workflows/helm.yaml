@@ -30,7 +30,7 @@ jobs:
 
       - name: Package Helm chart
         run: |
-          helm package helm/s3-mirror
+          helm package helm/s3-mirror -d /tmp
 
       - name: Create gh-pages branch if not exists
         run: |
@@ -41,7 +41,7 @@ jobs:
       - name: Update Helm repository
         run: |
           mkdir -p charts
-          mv s3-mirror-*.tgz charts/
+          mv /tmp/s3-mirror-*.tgz charts/
           helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts
           git add charts
           git commit -m "Update Helm chart"
