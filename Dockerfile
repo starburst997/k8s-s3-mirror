@@ -1,5 +1,9 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS builder
+
+# Accept build arguments for cross-compilation
+ARG TARGETOS
+ARG TARGETARCH
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -13,11 +17,11 @@ RUN go mod download
 # Copy source code
 COPY main.go ./
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o s3-proxy .
+# Build the application for the target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -o s3-proxy .
 
 # Final stage
-FROM alpine:3.18
+FROM --platform=$TARGETPLATFORM alpine:3.18
 
 # Install ca-certificates for HTTPS connections to S3 endpoints
 RUN apk --no-cache add ca-certificates

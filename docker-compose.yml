@@ -2,11 +2,11 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:latest
     environment:
       POSTGRES_USER: s3mirror
       POSTGRES_PASSWORD: s3mirror123
-      POSTGRES_DB: s3_mirror
+      POSTGRES_DB: s3mirror
     ports:
       - "5432:5432"
     volumes:
@@ -39,13 +39,11 @@ services:
       MIRROR_BUCKET_PREFIX: ${MIRROR_BUCKET_PREFIX}
 
       # PostgreSQL connection
-      POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3_mirror?sslmode=disable
+      POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3mirror?sslmode=disable
 
       # Enable debug logging for testing
       LOG_LEVEL: debug
-    volumes:
-      - ./:/app
-    command: ["/app/s3-proxy"]
+    command: ["./s3-proxy"]
 
   # Optional: MinIO for local S3 testing
   #minio:
