@@ -147,6 +147,7 @@ Each application gets its own S3 proxy and PostgreSQL database. This provides co
 #### Kubernetes Sidecar Example
 
 See [`examples/sidecar-deployment.yaml`](examples/sidecar-deployment.yaml) for a complete example that includes:
+
 - Application container
 - S3 proxy sidecar
 - PostgreSQL container
@@ -167,7 +168,7 @@ spec:
           image: your-app:latest
           env:
             - name: S3_ENDPOINT
-              value: "http://localhost:8080"  # Local proxy
+              value: "http://localhost:8080" # Local proxy
 
         # S3 Proxy sidecar
         - name: s3-proxy
@@ -191,6 +192,7 @@ spec:
 ```
 
 #### Benefits of Sidecar Pattern:
+
 - **Complete isolation**: Each app has its own proxy and database
 - **Independent scaling**: Scale apps independently
 - **Fault isolation**: Issues in one app don't affect others
@@ -198,6 +200,7 @@ spec:
 - **Network locality**: Communication via localhost is faster
 
 #### Drawbacks:
+
 - **Resource overhead**: Each app needs 3 containers
 - **Complex management**: More components to monitor
 - **Database per app**: Higher storage costs
@@ -213,6 +216,7 @@ env:
 ```
 
 This mode:
+
 - ✅ Still mirrors to backup S3
 - ✅ Uses less resources (no PostgreSQL needed)
 - ✅ Simpler deployment
@@ -235,8 +239,6 @@ docker-compose -f docker-compose-sidecar.yml up
 Simply update your S3 client configuration to point to the proxy service. The only changes needed:
 
 1. Change endpoint to `http://s3-proxy.s3-mirror.svc.cluster.local`
-2. Remove AWS credentials (proxy handles authentication)
-3. Enable path-style addressing (`forcePathStyle: true`)
 
 ### Node.js Example
 
@@ -253,7 +255,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 const s3 = new S3Client({
   endpoint: "http://s3-proxy.s3-mirror.svc.cluster.local",
   region: "us-east-1", // Still needed for SDK
-  forcePathStyle: true, // Important for proxy
+  forcePathStyle: true, // Optional - proxy supports both path-style and virtual-hosted style
   // No credentials needed - proxy handles auth
 })
 
@@ -296,7 +298,7 @@ import (
 sess := session.Must(session.NewSession(&aws.Config{
     Endpoint:         aws.String("http://s3-proxy.s3-mirror.svc.cluster.local"),
     Region:           aws.String("us-east-1"),
-    S3ForcePathStyle: aws.Bool(true),
+    S3ForcePathStyle: aws.Bool(true), // Optional - proxy supports both styles
     // No credentials needed - proxy handles auth
 }))
 
@@ -308,24 +310,24 @@ svc := s3.New(sess)
 
 ### Environment Variables
 
-| Variable             | Description                               | Default                    |
-| -------------------- | ----------------------------------------- | -------------------------- |
-| `MAIN_S3_ENDPOINT`   | Primary S3 endpoint                       | `https://s3.amazonaws.com` |
-| `MAIN_ACCESS_KEY`    | Primary S3 access key                     | Required                   |
-| `MAIN_SECRET_KEY`    | Primary S3 secret key                     | Required                   |
-| `MIRROR_S3_ENDPOINT`    | Mirror S3 endpoint                                   | Required                   |
-| `MIRROR_ACCESS_KEY`     | Mirror S3 access key                                 | Required                   |
-| `MIRROR_SECRET_KEY`     | Mirror S3 secret key                                 | Required                   |
-| `MIRROR_BUCKET_PREFIX`  | Optional prefix for mirror bucket names (e.g. "mirror-") | Empty (no prefix)      |
-| `POSTGRES_URL`          | PostgreSQL connection string                         | Required (unless disabled) |
-| `POSTGRES_HOST`         | PostgreSQL host (alternative to POSTGRES_URL)        | `localhost`                |
-| `POSTGRES_PORT`         | PostgreSQL port                                      | `5432`                     |
-| `POSTGRES_USER`         | PostgreSQL username                                  | `s3mirror`                 |
-| `POSTGRES_PASSWORD`     | PostgreSQL password                                  | Required (if not using URL)|
-| `POSTGRES_DB`           | PostgreSQL database name                             | `s3_mirror`                |
-| `POSTGRES_SSLMODE`      | PostgreSQL SSL mode                                  | `disable`                  |
-| `DISABLE_DATABASE`      | Disable database tracking (mirror-only mode)         | `false`                    |
-| `LOG_LEVEL`             | Logging level (debug/info/warn/error/off)            | `info`                     |
+| Variable               | Description                                              | Default                     |
+| ---------------------- | -------------------------------------------------------- | --------------------------- |
+| `MAIN_S3_ENDPOINT`     | Primary S3 endpoint                                      | `https://s3.amazonaws.com`  |
+| `MAIN_ACCESS_KEY`      | Primary S3 access key                                    | Required                    |
+| `MAIN_SECRET_KEY`      | Primary S3 secret key                                    | Required                    |
+| `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint                                       | Required                    |
+| `MIRROR_ACCESS_KEY`    | Mirror S3 access key                                     | Required                    |
+| `MIRROR_SECRET_KEY`    | Mirror S3 secret key                                     | Required                    |
+| `MIRROR_BUCKET_PREFIX` | Optional prefix for mirror bucket names (e.g. "mirror-") | Empty (no prefix)           |
+| `POSTGRES_URL`         | PostgreSQL connection string                             | Required (unless disabled)  |
+| `POSTGRES_HOST`        | PostgreSQL host (alternative to POSTGRES_URL)            | `localhost`                 |
+| `POSTGRES_PORT`        | PostgreSQL port                                          | `5432`                      |
+| `POSTGRES_USER`        | PostgreSQL username                                      | `s3mirror`                  |
+| `POSTGRES_PASSWORD`    | PostgreSQL password                                      | Required (if not using URL) |
+| `POSTGRES_DB`          | PostgreSQL database name                                 | `s3_mirror`                 |
+| `POSTGRES_SSLMODE`     | PostgreSQL SSL mode                                      | `disable`                   |
+| `DISABLE_DATABASE`     | Disable database tracking (mirror-only mode)             | `false`                     |
+| `LOG_LEVEL`            | Logging level (debug/info/warn/error/off)                | `info`                      |
 
 ### Bucket Prefix for Mirroring
 
@@ -336,6 +338,7 @@ The `MIRROR_BUCKET_PREFIX` environment variable allows you to automatically pref
 - You need to avoid bucket name conflicts
 
 **Example:**
+
 - If `MIRROR_BUCKET_PREFIX=mirror-`
 - Main bucket: `my-data`
 - Mirror bucket: `mirror-my-data`
@@ -377,6 +380,7 @@ CREATE INDEX idx_bucket_my_data_deleted ON bucket_my_data(deleted);
 ```
 
 ### Table Naming Convention
+
 - Bucket names are prefixed with `bucket_`
 - Special characters are replaced with underscores
 - Examples:
@@ -452,6 +456,7 @@ Future versions will expose metrics at `/metrics`:
 ### Local Testing with Docker Compose
 
 The easiest way to test the S3 proxy locally is using Docker Compose, which sets up:
+
 - PostgreSQL database
 - S3 Proxy service
 - MinIO (local S3-compatible storage)
@@ -460,23 +465,27 @@ The easiest way to test the S3 proxy locally is using Docker Compose, which sets
 #### Quick Start
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/starburst997/k8s-s3-mirror
 cd k8s-s3-mirror
 ```
 
 2. **Copy environment file and update credentials (optional):**
+
 ```bash
 cp .env.example .env
 # Edit .env with your actual S3 credentials, or use MinIO for fully local testing
 ```
 
 3. **Build and start the services:**
+
 ```bash
 docker-compose up --build
 ```
 
 4. **Run tests using the test client:**
+
 ```bash
 # Run the full test suite
 docker-compose exec test-client node index.js test my-test-bucket
@@ -496,6 +505,7 @@ docker-compose exec test-client node index.js delete my-bucket test.txt
 ```
 
 5. **Check the logs:**
+
 ```bash
 # View proxy logs (with debug level enabled)
 docker-compose logs -f s3-proxy
@@ -505,6 +515,7 @@ docker-compose exec postgres psql -U s3mirror -d s3_mirror -c "\l"
 ```
 
 6. **Access MinIO console (if using MinIO for testing):**
+
 - URL: http://localhost:9001
 - Username: minioadmin
 - Password: minioadmin
@@ -514,6 +525,7 @@ docker-compose exec postgres psql -U s3mirror -d s3_mirror -c "\l"
 To test without any external S3 services, configure both main and mirror to use MinIO:
 
 1. Update your `.env` file:
+
 ```bash
 MAIN_S3_ENDPOINT=http://minio:9000
 MAIN_ACCESS_KEY=minioadmin
@@ -524,12 +536,14 @@ MIRROR_SECRET_KEY=minioadmin
 ```
 
 2. Create buckets in MinIO:
+
 ```bash
 # Access MinIO console at http://localhost:9001
 # Create two buckets: 'main-bucket' and 'mirror-bucket'
 ```
 
 3. Run tests:
+
 ```bash
 docker-compose exec test-client node index.js test main-bucket
 ```
@@ -558,11 +572,13 @@ node index.js test <bucket>
 #### Verifying the Mirror Works
 
 1. Upload a file through the proxy:
+
 ```bash
 docker-compose exec test-client node index.js upload test-bucket myfile.txt /test-files/sample.txt
 ```
 
 2. Check PostgreSQL for the file record:
+
 ```bash
 docker-compose exec postgres psql -U s3mirror -d s3_mirror_test_bucket -c "SELECT * FROM files;"
 ```
@@ -634,7 +650,6 @@ The proxy adds minimal overhead since it streams data directly between your app 
 2. **Authentication errors**: Check that main S3 credentials are correctly configured in the secret
 3. **Database connection**: Verify PostgreSQL connectivity and credentials
 4. **Mirror failures**: Check mirror S3 credentials and endpoint
-5. **Path-style vs Virtual-host**: Ensure `forcePathStyle: true` is set in your S3 client
 
 ### Logging & Disk Usage
 

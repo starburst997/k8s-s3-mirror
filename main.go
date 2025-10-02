@@ -153,12 +153,25 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 		req.Body.Close()
 	}
 
-	// Extract bucket and key for logging
-	bucket, key := extractBucketAndKey(req.URL.Path)
+	// Extract bucket and key for logging (supports both path-style and virtual-hosted style)
+	bucket, key := extractBucketAndKey(req.URL.Path, req.Host)
 
 	// Create new request to forward to main S3
 	forwardURL := *targetURL
-	forwardURL.Path = req.URL.Path
+
+	// Determine if this is virtual-hosted style and convert to path-style for forwarding
+	// (Most S3-compatible services support path-style, and it's simpler for proxying)
+	if bucket != "" && !strings.HasPrefix(req.URL.Path, "/"+bucket) {
+		// This was virtual-hosted style, convert to path-style
+		if key != "" {
+			forwardURL.Path = "/" + bucket + "/" + key
+		} else {
+			forwardURL.Path = "/" + bucket
+		}
+	} else {
+		// Already path-style, use as-is
+		forwardURL.Path = req.URL.Path
+	}
 	forwardURL.RawQuery = req.URL.RawQuery
 
 	forwardReq, err := http.NewRequest(req.Method, forwardURL.String(), bytes.NewReader(bodyBytes))
@@ -480,14 +493,50 @@ func hmacSHA256(key, data []byte) []byte {
 	return h.Sum(nil)
 }
 
-func extractBucketAndKey(urlPath string) (string, string) {
+func extractBucketAndKey(urlPath, hostHeader string) (string, string) {
+	// Check if this is virtual-hosted style (bucket.s3.amazonaws.com or bucket.s3-region.amazonaws.com)
+	// Also support custom S3-compatible endpoints
+	if hostHeader != "" {
+		// Common patterns for virtual-hosted style:
+		// - bucket.s3.amazonaws.com
+		// - bucket.s3.region.amazonaws.com
+		// - bucket.s3-region.amazonaws.com
+		// - bucket.custom-s3-endpoint.com
+
+		// For proxy use, we expect format: bucket.proxy-host:port or bucket.proxy-host
+		parts := strings.Split(hostHeader, ".")
+		if len(parts) >= 2 {
+			// First part is likely the bucket name
+			bucket := parts[0]
+			// Remove port if present
+			if colonIndex := strings.Index(bucket, ":"); colonIndex > 0 {
+				bucket = bucket[:colonIndex]
+			}
+
+			// In virtual-hosted style, the path is just the object key
+			key := strings.TrimPrefix(urlPath, "/")
+			if bucket != "" && key != "" {
+				return bucket, key
+			}
+			// If no key in path, might be a bucket operation
+			if bucket != "" && urlPath == "/" {
+				return bucket, ""
+			}
+		}
+	}
+
+	// Fall back to path-style parsing
 	// Remove leading slash
 	urlPath = strings.TrimPrefix(urlPath, "/")
 
 	// Split into parts
 	parts := strings.SplitN(urlPath, "/", 2)
-	if len(parts) < 2 {
+	if len(parts) < 1 {
 		return "", ""
+	}
+	if len(parts) == 1 {
+		// Just bucket, no key
+		return parts[0], ""
 	}
 
 	return parts[0], parts[1]
