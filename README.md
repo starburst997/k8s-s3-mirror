@@ -16,9 +16,6 @@ Your application connects to the proxy instead of S3 directly. The proxy forward
 ### Installation with Helm
 
 ```bash
-# Pull and install directly from GitHub Container Registry (OCI)
-# Replace 'starburst997' with the actual owner if different
-
 # Create values.yaml
 cat > values.yaml <<EOF
 s3:
@@ -36,13 +33,6 @@ EOF
 
 # Install the chart from GitHub Container Registry
 helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \
-  --namespace s3-mirror \
-  --create-namespace \
-  -f values.yaml
-
-# Or specify a specific version
-helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \
-  --version 1.0.1 \
   --namespace s3-mirror \
   --create-namespace \
   -f values.yaml
