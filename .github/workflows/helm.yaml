@@ -14,56 +14,51 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
       - name: Install Helm
         uses: azure/setup-helm@v3
 
-      - name: Package Helm chart
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package and Push Helm chart
         run: |
-          helm package helm/s3-mirror -d /tmp
+          # Package the Helm chart
+          helm package helm/s3-mirror
 
-      - name: Create gh-pages branch if not exists
+          # Get the chart version from Chart.yaml
+          CHART_VERSION=$(helm show chart helm/s3-mirror | grep '^version:' | awk '{print $2}')
+
+          # Convert owner name to lowercase (OCI registry requires lowercase)
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
+          # Push to GitHub Container Registry using OCI
+          helm push s3-mirror-${CHART_VERSION}.tgz oci://ghcr.io/${OWNER_LOWER}
+
+          echo "Chart pushed to: ghcr.io/${OWNER_LOWER}/s3-mirror:${CHART_VERSION}"
+          echo ""
+          echo "To use this chart:"
+          echo "  helm install s3-mirror oci://ghcr.io/${OWNER_LOWER}/s3-mirror --version ${CHART_VERSION}"
+
+      - name: Make package public
         run: |
-          # Check if gh-pages exists on remote
-          if git ls-remote --exit-code origin gh-pages; then
-            git checkout gh-pages
-            git pull origin gh-pages
-          else
-            # Create orphan branch (no parent history) for clean Helm repository
-            git checkout --orphan gh-pages
-            # Remove all files from working tree
-            git rm -rf .
-            git clean -fdx
-          fi
+          # Get package name (just the chart name part)
+          PACKAGE_NAME="s3-mirror"
 
-      - name: Update Helm repository
-        run: |
-          mkdir -p charts
-
-          # Move new chart package
-          mv /tmp/s3-mirror-*.tgz charts/
-
-          # Generate/update index.yaml (preserves existing charts)
-          helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts --merge charts/index.yaml || helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts
-
-          # Add all changes
-          git add .
-
-          # Commit only if there are changes
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update Helm chart repository"
-            git push origin gh-pages
-          fi
+          # Make the package public using GitHub API
+          curl -X PATCH \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/user/packages/container/${PACKAGE_NAME}/versions" \
+            -d '{"visibility":"public"}' || true
