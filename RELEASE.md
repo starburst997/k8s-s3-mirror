@@ -164,13 +164,18 @@ git push origin v1.2.3
 
 ```bash
 # Latest stable
-docker pull ghcr.io/starburst997/k8s-s3-mirror:latest
+docker pull ghcr.io/starburst997/s3-mirror:latest
 
-# Specific version
-docker pull ghcr.io/starburst997/k8s-s3-mirror:v1.2.3
+# Specific version (both formats work)
+docker pull ghcr.io/starburst997/s3-mirror:v1.2.3  # with v prefix
+docker pull ghcr.io/starburst997/s3-mirror:1.2.3   # without v prefix
+
+# Minor version (auto-updates to latest patch)
+docker pull ghcr.io/starburst997/s3-mirror:1.2     # updates to 1.2.x
 
 # Major version (auto-updates to latest minor/patch)
-docker pull ghcr.io/starburst997/k8s-s3-mirror:v1
+docker pull ghcr.io/starburst997/s3-mirror:1       # updates to 1.x.x
+docker pull ghcr.io/starburst997/s3-mirror:v1      # with v prefix also works
 ```
 
 ### Helm Chart

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: s3-proxy
-          image: ghcr.io/starburst997/k8s-s3-mirror:latest
+          image: ghcr.io/starburst997/s3-mirror:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

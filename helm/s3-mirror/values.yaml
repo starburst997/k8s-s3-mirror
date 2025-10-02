@@ -2,7 +2,7 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/starburst997/k8s-s3-mirror
+  repository: ghcr.io/starburst997/s3-mirror
   pullPolicy: Always
   tag: "v1.0.1"
 
