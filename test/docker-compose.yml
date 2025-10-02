@@ -30,7 +30,7 @@ services:
       retries: 5
 
   s3-proxy:
-    build: .
+    build: ..
     depends_on:
       postgres:
         condition: service_healthy

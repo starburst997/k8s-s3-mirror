@@ -474,13 +474,14 @@ cd k8s-s3-mirror
 2. **Copy environment file and update credentials (optional):**
 
 ```bash
-cp .env.example .env
-# Edit .env with your actual S3 credentials, or use MinIO for fully local testing
+cp test/.env.example test/.env
+# Edit test/.env with your actual S3 credentials, or use MinIO for fully local testing
 ```
 
 3. **Build and start the services:**
 
 ```bash
+cd test
 docker-compose up --build
 ```
 
@@ -524,7 +525,7 @@ docker-compose exec postgres psql -U s3mirror -d s3_mirror -c "\l"
 
 To test without any external S3 services, configure both main and mirror to use MinIO:
 
-1. Update your `.env` file:
+1. Update your `test/.env` file:
 
 ```bash
 MAIN_S3_ENDPOINT=http://minio:9000
@@ -550,7 +551,7 @@ docker-compose exec test-client node index.js test main-bucket
 
 #### Test Client CLI Commands
 
-The test client (`test-client/index.js`) provides the following commands:
+The test client (`test/test-client/index.js`) provides the following commands:
 
 ```bash
 # Upload a file
