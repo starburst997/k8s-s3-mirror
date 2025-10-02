@@ -120,8 +120,8 @@ git push origin v1.2.3
 **Actions**:
 
 - Package Helm chart
-- Publish to GitHub Pages (`gh-pages` branch)
-- Available at: https://starburst997.github.io/k8s-s3-mirror/charts
+- Push to GitHub Container Registry (OCI)
+- Available at: `oci://ghcr.io/starburst997/s3-mirror`
 
 ## Development Workflow
 
@@ -176,15 +176,15 @@ docker pull ghcr.io/starburst997/k8s-s3-mirror:v1
 ### Helm Chart
 
 ```bash
-# Add repository
-helm repo add k8s-s3-mirror https://starburst997.github.io/k8s-s3-mirror/charts
-helm repo update
+# Install from GitHub Container Registry (OCI)
+# Latest version
+helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror
 
 # Install specific version
-helm install s3-mirror k8s-s3-mirror/s3-mirror --version 1.2.3
+helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror --version 1.2.3
 
 # Upgrade to latest
-helm upgrade s3-mirror k8s-s3-mirror/s3-mirror
+helm upgrade s3-mirror oci://ghcr.io/starburst997/s3-mirror
 ```
 
 ### Binary Downloads

@@ -370,12 +370,8 @@
         <p class="section-subtitle">Deploy in minutes with Helm</p>
 
         <div class="code-block">
-          <span class="comment"># Add the Helm repository</span><br />
-          helm repo add s3-mirror https://jdboivin.github.io/k8s-s3-mirror<br />
-          helm repo update<br /><br />
-
-          <span class="comment"># Install with your S3 credentials</span><br />
-          helm install s3-mirror s3-mirror/s3-mirror \<br />
+          <span class="comment"># Install directly from GitHub Container Registry (OCI)</span><br />
+          helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \<br />
           &nbsp;&nbsp;--set mainS3.endpoint=<span class="string"
             >"https://s3.amazonaws.com"</span
           >
@@ -402,7 +398,11 @@
           \<br />
           &nbsp;&nbsp;--set postgres.url=<span class="string"
             >"postgresql://user:pass@host:5432/db"</span
-          >
+          ><br /><br />
+
+          <span class="comment"># Or install a specific version</span><br />
+          helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \<br />
+          &nbsp;&nbsp;--version 1.0.1
         </div>
 
         <h3 style="margin-top: 3rem; font-size: 1.8rem; color: #333">
