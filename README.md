@@ -1,6 +1,7 @@
 # K8S S3 Mirror
 
 ![Build Status](https://github.com/starburst997/k8s-s3-mirror/workflows/Build%20and%20Publish/badge.svg)
+![Helm Chart](https://github.com/starburst997/k8s-s3-mirror/workflows/Release%20Helm%20Chart/badge.svg)
 ![License](https://img.shields.io/github/license/starburst997/k8s-s3-mirror)
 ![Go Version](https://img.shields.io/badge/Go-1.21-blue)
 
