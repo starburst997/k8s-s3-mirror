@@ -3,11 +3,15 @@ services:
   dnsmasq:
     build: ./dnsmasq
     container_name: dnsmasq
+    environment:
+      WILDCARD_DOMAIN: s3-proxy # Domain for wildcard resolution
+      TARGET_HOST: s3-proxy # Resolve to the s3-proxy service
+      LOG_QUERIES: "yes" # Enable query logging
     cap_add:
       - NET_ADMIN
     networks:
       default:
-        ipv4_address: 172.20.0.10
+        ipv4_address: 172.20.0.253 # Fixed IP for DNS server
     restart: unless-stopped
 
   postgres:
@@ -25,8 +29,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      default:
 
   s3-proxy:
     build: .
@@ -37,9 +39,6 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
-    networks:
-      default:
-        ipv4_address: 172.20.0.20
     environment:
       # Main S3 - Using AWS S3 (change these to your test bucket credentials)
       MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT}
@@ -85,8 +84,7 @@ services:
     depends_on:
       - s3-proxy
       - dnsmasq
-    dns:
-      - 172.20.0.10  # Use dnsmasq for DNS resolution
+    dns: 172.20.0.253 # Use dnsmasq for DNS resolution
     environment:
       S3_PROXY_ENDPOINT: http://s3-proxy:8080
     volumes:
@@ -96,7 +94,7 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  #minio_data:
 
 networks:
   default:
