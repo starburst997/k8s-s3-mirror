@@ -1,6 +1,15 @@
-version: "3.8"
-
 services:
+  # DNS resolver for wildcard subdomain support
+  dnsmasq:
+    build: ./dnsmasq
+    container_name: dnsmasq
+    cap_add:
+      - NET_ADMIN
+    networks:
+      default:
+        ipv4_address: 172.20.0.10
+    restart: unless-stopped
+
   postgres:
     image: postgres:latest
     environment:
@@ -16,14 +25,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      default:
 
   s3-proxy:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+      dnsmasq:
+        condition: service_started
     ports:
       - "8080:8080"
+    networks:
+      default:
+        ipv4_address: 172.20.0.20
     environment:
       # Main S3 - Using AWS S3 (change these to your test bucket credentials)
       MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT}
@@ -68,6 +84,9 @@ services:
     build: ./test-client
     depends_on:
       - s3-proxy
+      - dnsmasq
+    dns:
+      - 172.20.0.10  # Use dnsmasq for DNS resolution
     environment:
       S3_PROXY_ENDPOINT: http://s3-proxy:8080
     volumes:
@@ -78,3 +97,10 @@ services:
 volumes:
   postgres_data:
   minio_data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

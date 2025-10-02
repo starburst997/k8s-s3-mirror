@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { program } from 'commander';
+import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
+import { program } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const s3Client = new S3Client({
   endpoint: process.env.S3_PROXY_ENDPOINT || 'http://localhost:8080',
   region: 'us-east-1', // Required by SDK but not used by proxy
-  forcePathStyle: true, // Important for proxy compatibility
+  forcePathStyle: false, // Important for proxy compatibility
   credentials: {
     accessKeyId: 'dummy', // Proxy handles real auth
     secretAccessKey: 'dummy'
