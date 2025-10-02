@@ -69,7 +69,7 @@ services:
     environment:
       S3_PROXY_ENDPOINT: http://s3-proxy:8080
     volumes:
-      - ./test-client:/app
+      #- ./test-client:/app
       - ./test-files:/test-files
     command: tail -f /dev/null # Keep container running
 
