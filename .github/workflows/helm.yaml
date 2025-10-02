@@ -35,15 +35,35 @@ jobs:
 
       - name: Create gh-pages branch if not exists
         run: |
-          git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
-          git reset --hard origin/main
-          git clean -fdx
+          # Check if gh-pages exists on remote
+          if git ls-remote --exit-code origin gh-pages; then
+            git checkout gh-pages
+            git pull origin gh-pages
+          else
+            # Create orphan branch (no parent history) for clean Helm repository
+            git checkout --orphan gh-pages
+            # Remove all files from working tree
+            git rm -rf .
+            git clean -fdx
+          fi
 
       - name: Update Helm repository
         run: |
           mkdir -p charts
+
+          # Move new chart package
           mv /tmp/s3-mirror-*.tgz charts/
-          helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts
-          git add charts
-          git commit -m "Update Helm chart"
-          git push origin gh-pages --force
+
+          # Generate/update index.yaml (preserves existing charts)
+          helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts --merge charts/index.yaml || helm repo index charts --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts
+
+          # Add all changes
+          git add .
+
+          # Commit only if there are changes
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Helm chart repository"
+            git push origin gh-pages
+          fi
