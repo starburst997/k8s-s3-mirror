@@ -4,7 +4,7 @@ replicaCount: 2
 image:
   repository: ghcr.io/starburst997/k8s-s3-mirror
   pullPolicy: Always
-  tag: "latest"
+  tag: "v1.0.1"
 
 # Ingress Configuration (for wildcard subdomain support)
 # Enable this if you need virtual-hosted-style S3 (forcePathStyle: false)
