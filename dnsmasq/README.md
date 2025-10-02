@@ -11,8 +11,7 @@ services:
   dnsmasq:
     build: ./dnsmasq  # Or use image: your-registry/wildcard-dns
     environment:
-      WILDCARD_DOMAIN: myapp      # *.myapp will resolve
-      TARGET_HOST: myapp-service  # Target service name
+      WILDCARD_DOMAIN: myapp      # *.myapp will resolve to 'myapp' service
     cap_add:
       - NET_ADMIN
     networks:
@@ -20,8 +19,8 @@ services:
         ipv4_address: 172.20.0.253  # Fixed IP for DNS
     restart: unless-stopped
 
-  # Your service that needs wildcard subdomains
-  myapp-service:
+  # Your service that needs wildcard subdomains (name matches WILDCARD_DOMAIN)
+  myapp:
     image: your-app
     # ... your config ...
 
@@ -44,10 +43,12 @@ networks:
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
 | `WILDCARD_DOMAIN` | Domain for wildcard resolution | `localhost` | `s3-proxy` |
-| `TARGET_HOST` | Service name to resolve to | - | `my-service` |
+| `TARGET_HOST` | Service name to resolve to | Same as `WILDCARD_DOMAIN` | `my-service` |
 | `TARGET_IP` | IP address to resolve to (alternative to TARGET_HOST) | - | `172.20.0.20` |
 | `UPSTREAM_DNS` | Upstream DNS servers | `8.8.8.8 8.8.4.4` | `1.1.1.1` |
 | `LOG_QUERIES` | Enable DNS query logging | `yes` | `no` |
+
+**Note:** `TARGET_HOST` defaults to `WILDCARD_DOMAIN` if not specified, which works for most cases where the service name matches the domain name.
 
 ## Use Cases
 
@@ -147,15 +148,18 @@ services:
   dnsmasq:
     build: ./dnsmasq
     environment:
-      WILDCARD_DOMAIN: your-domain
-      TARGET_HOST: your-service
+      WILDCARD_DOMAIN: your-service  # Both domain and target service
     cap_add:
       - NET_ADMIN
     networks:
       default:
         ipv4_address: 172.20.0.253
 
-  # For any service that needs to resolve wildcards:
+  your-service:  # Service name matches WILDCARD_DOMAIN
+    image: your-image
+    # ... your config ...
+
+  # Any service that needs to resolve wildcards:
   client:
     dns: 172.20.0.253
 
@@ -166,7 +170,7 @@ networks:
         - subnet: 172.20.0.0/16
 ```
 
-That's it! Now `*.your-domain` resolves to `your-service`.
+That's it! Now `*.your-service` resolves to the `your-service` container.
 
 ## Note on Docker Compose DNS
 

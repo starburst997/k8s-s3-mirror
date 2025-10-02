@@ -4,8 +4,7 @@ services:
     build: ./dnsmasq
     container_name: dnsmasq
     environment:
-      WILDCARD_DOMAIN: s3-proxy # Domain for wildcard resolution
-      TARGET_HOST: s3-proxy # Resolve to the s3-proxy service
+      WILDCARD_DOMAIN: s3-proxy # Domain for wildcard resolution (also the target service name)
       LOG_QUERIES: "yes" # Enable query logging
     cap_add:
       - NET_ADMIN
