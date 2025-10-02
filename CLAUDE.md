@@ -9,6 +9,7 @@ A Kubernetes-native S3 proxy that intercepts S3 requests, forwards them to the m
 ### Design Philosophy
 
 The proxy follows a simple, efficient design:
+
 - **HTTP internally**: Apps communicate with the proxy over HTTP (internal K8s traffic)
 - **HTTPS externally**: Proxy communicates with S3 endpoints over HTTPS
 - **Centralized auth**: All S3 credentials are managed by the proxy, not individual apps
@@ -61,6 +62,7 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 ### S3 Signature Handling
 
 The proxy implements AWS Signature Version 4 for authenticating with S3 endpoints:
+
 - Signs requests with appropriate credentials (main or mirror)
 - Handles both path-style and virtual-hosted-style requests
 - Preserves necessary headers while forwarding
@@ -125,7 +127,9 @@ CREATE TABLE files (
 ## Key Functions in main.go
 
 ### `handleProxyRequest()`
+
 Main request handler that:
+
 1. Reads incoming request body
 2. Signs request with main S3 credentials
 3. Forwards to main S3
@@ -133,25 +137,28 @@ Main request handler that:
 5. Triggers async operations (DB log + mirror)
 
 ### `signRequestV4()`
+
 Implements AWS Signature V4 for authenticating requests to S3 endpoints.
 
 ### `mirrorToBackupS3()`
+
 Async function that replicates operations to backup S3 with proper authentication.
 
 ### `getOrCreateBucketDB()`
+
 Dynamically creates PostgreSQL database for each bucket on first access.
 
 ### `extractBucketAndKey()`
+
 Parses S3 path to extract bucket name and object key.
 
 ## Important Implementation Notes
 
 1. **No TLS complexity**: Service runs on HTTP port 8080 internally
-2. **Path-style required**: Apps must use `forcePathStyle: true` in S3 clients
-3. **Async operations**: DB writes and mirroring are non-blocking (goroutines)
-4. **Database naming**: Bucket names sanitized with regex for DB names
-5. **Soft deletes**: DELETE operations mark `deleted=true` in DB, don't remove records
-6. **Region hardcoded**: Currently uses `us-east-1` for signature - could be made configurable
+2. **Async operations**: DB writes and mirroring are non-blocking (goroutines)
+3. **Database naming**: Bucket names sanitized with regex for DB names
+4. **Soft deletes**: DELETE operations mark `deleted=true` in DB, don't remove records
+5. **Region hardcoded**: Currently uses `us-east-1` for signature - could be made configurable
 
 ## Known Limitations
 

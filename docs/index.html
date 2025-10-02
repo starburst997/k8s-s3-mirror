@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K8s S3 Mirror - Kubernetes-native S3 Proxy</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .hero-background {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        z-index: -1;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      header {
+        padding: 2rem 0;
+        text-align: center;
+        color: white;
+      }
+
+      .hero {
+        padding: 4rem 0 6rem;
+        text-align: center;
+        color: white;
+      }
+
+      h1 {
+        font-size: 3.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0.9));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .tagline {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        opacity: 0.95;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 2.5rem;
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 0.875rem 2rem;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        font-size: 1.1rem;
+      }
+
+      .btn-primary {
+        background: white;
+        color: #667eea;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: white;
+        border: 2px solid white;
+      }
+
+      .btn-secondary:hover {
+        background: white;
+        color: #667eea;
+      }
+
+      .features-section {
+        background: white;
+        border-radius: 20px 20px 0 0;
+        padding: 5rem 0;
+        margin-top: -2rem;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 3rem;
+        margin-top: 3rem;
+      }
+
+      .feature {
+        text-align: center;
+        padding: 1.5rem;
+      }
+
+      .feature-icon {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 1.5rem;
+        color: white;
+      }
+
+      .feature h3 {
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+        color: #333;
+      }
+
+      .feature p {
+        color: #666;
+        line-height: 1.7;
+      }
+
+      .section-title {
+        text-align: center;
+        font-size: 2.5rem;
+        color: #333;
+        margin-bottom: 1rem;
+      }
+
+      .section-subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .tech-stack {
+        background: #f8f9fa;
+        padding: 4rem 0;
+        text-align: center;
+      }
+
+      .tech-badges {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 2rem;
+      }
+
+      .badge {
+        background: white;
+        padding: 0.5rem 1.25rem;
+        border-radius: 25px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+        color: #667eea;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+      }
+
+      .badge:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+      }
+
+      .usage-section {
+        padding: 5rem 0;
+        background: white;
+      }
+
+      .code-block {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1.5rem;
+        border-radius: 10px;
+        overflow-x: auto;
+        margin-top: 2rem;
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .code-block .comment {
+        color: #6a9955;
+      }
+
+      .code-block .keyword {
+        color: #c586c0;
+      }
+
+      .code-block .string {
+        color: #ce9178;
+      }
+
+      footer {
+        background: #f8f9fa;
+        padding: 3rem 0;
+        text-align: center;
+        color: #666;
+      }
+
+      footer a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      @media (max-width: 768px) {
+        h1 {
+          font-size: 2.5rem;
+        }
+
+        .tagline {
+          font-size: 1.2rem;
+        }
+
+        .features {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero-background"></div>
+
+    <header>
+      <div class="container">
+        <nav>
+          <a
+            href="https://github.com/jdboivin/k8s-s3-mirror"
+            class="btn btn-secondary"
+          >
+            View on GitHub →
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="container">
+        <h1>K8s S3 Mirror</h1>
+        <p class="tagline">
+          A Kubernetes-native S3 proxy that intercepts requests, mirrors to
+          backup storage, and maintains a postgres inventory
+        </p>
+        <div class="buttons">
+          <a
+            href="https://github.com/jdboivin/k8s-s3-mirror"
+            class="btn btn-primary"
+          >
+            Get Started
+          </a>
+          <a
+            href="https://github.com/jdboivin/k8s-s3-mirror/blob/main/README.md"
+            class="btn btn-secondary"
+          >
+            Documentation
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="features-section">
+      <div class="container">
+        <h2 class="section-title">Key Features</h2>
+        <p class="section-subtitle">
+          Enterprise-grade S3 mirroring with zero application changes
+        </p>
+
+        <div class="features">
+          <div class="feature">
+            <div class="feature-icon">🔄</div>
+            <h3>Automatic Mirroring</h3>
+            <p>
+              Asynchronously mirrors all S3 operations to a backup endpoint
+              without impacting performance
+            </p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">🔐</div>
+            <h3>Centralized Auth</h3>
+            <p>
+              Manage all S3 credentials in one place. Applications connect via
+              simple HTTP, proxy handles HTTPS
+            </p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">📊</div>
+            <h3>Complete Inventory</h3>
+            <p>
+              PostgreSQL-backed tracking of all objects with metadata, soft
+              deletes, and backup status
+            </p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">⚡</div>
+            <h3>Non-blocking</h3>
+            <p>
+              Database logging and backup operations happen asynchronously for
+              minimal latency
+            </p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">🎯</div>
+            <h3>Drop-in Replacement</h3>
+            <p>
+              Works with any S3-compatible client. Just point your apps to the
+              proxy endpoint
+            </p>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">📦</div>
+            <h3>Kubernetes Native</h3>
+            <p>
+              Deploy with Helm chart or raw manifests. Runs as a simple,
+              stateless service
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tech-stack">
+      <div class="container">
+        <h2 class="section-title">Built With</h2>
+        <div class="tech-badges">
+          <span class="badge">Go</span>
+          <span class="badge">Kubernetes</span>
+          <span class="badge">Helm</span>
+          <span class="badge">PostgreSQL</span>
+          <span class="badge">AWS S3</span>
+          <span class="badge">Docker</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="usage-section">
+      <div class="container">
+        <h2 class="section-title">Quick Start</h2>
+        <p class="section-subtitle">Deploy in minutes with Helm</p>
+
+        <div class="code-block">
+          <span class="comment"># Add the Helm repository</span><br />
+          helm repo add s3-mirror https://jdboivin.github.io/k8s-s3-mirror<br />
+          helm repo update<br /><br />
+
+          <span class="comment"># Install with your S3 credentials</span><br />
+          helm install s3-mirror s3-mirror/s3-mirror \<br />
+          &nbsp;&nbsp;--set mainS3.endpoint=<span class="string"
+            >"https://s3.amazonaws.com"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set mainS3.accessKey=<span class="string"
+            >"YOUR_MAIN_KEY"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set mainS3.secretKey=<span class="string"
+            >"YOUR_MAIN_SECRET"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set mirrorS3.endpoint=<span class="string"
+            >"https://backup.s3.com"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set mirrorS3.accessKey=<span class="string"
+            >"YOUR_MIRROR_KEY"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set mirrorS3.secretKey=<span class="string"
+            >"YOUR_MIRROR_SECRET"</span
+          >
+          \<br />
+          &nbsp;&nbsp;--set postgres.url=<span class="string"
+            >"postgresql://user:pass@host:5432/db"</span
+          >
+        </div>
+
+        <h3 style="margin-top: 3rem; font-size: 1.8rem; color: #333">
+          Application Integration
+        </h3>
+        <p class="section-subtitle" style="margin-top: 1rem">
+          Just change the endpoint - that's it!
+        </p>
+
+        <div class="code-block">
+          <span class="comment">// Before: Direct S3 connection</span><br />
+          <span class="keyword">const</span> s3Client =
+          <span class="keyword">new</span> S3Client({<br />
+          &nbsp;&nbsp;endpoint:
+          <span class="string">"https://s3.amazonaws.com"</span>,<br />
+          &nbsp;&nbsp;credentials: { ... },<br />
+          &nbsp;&nbsp;region: <span class="string">"us-east-1"</span><br />
+          });<br /><br />
+
+          <span class="comment"
+            >// After: Using S3 Mirror proxy (no credentials needed!)</span
+          ><br />
+          <span class="keyword">const</span> s3Client =
+          <span class="keyword">new</span> S3Client({<br />
+          &nbsp;&nbsp;endpoint:
+          <span class="string">"http://s3.local"</span>,<br />
+          &nbsp;&nbsp;region: <span class="string">"us-east-1"</span><br />
+          });<br /><br />
+
+          <span class="comment"
+            >// Use S3 operations as normal - everything is automatically
+            mirrored!</span
+          ><br />
+          <span class="keyword">await</span> s3Client.send(<span class="keyword"
+            >new</span
+          >
+          PutObjectCommand({<br />
+          &nbsp;&nbsp;Bucket: <span class="string">"my-bucket"</span>,<br />
+          &nbsp;&nbsp;Key: <span class="string">"file.txt"</span>,<br />
+          &nbsp;&nbsp;Body: <span class="string">"Hello World"</span><br />
+          }));
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <p>
+          <a href="https://github.com/jdboivin/k8s-s3-mirror">GitHub</a> •
+          <a href="https://github.com/jdboivin/k8s-s3-mirror/issues">Issues</a>
+          •
+          <a href="https://github.com/jdboivin/k8s-s3-mirror/releases"
+            >Releases</a
+          >
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
