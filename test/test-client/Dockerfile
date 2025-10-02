@@ -16,4 +16,4 @@ RUN echo '#!/bin/sh' > /app/wait-and-test.sh && \
     echo 'node index.js test "$@"' >> /app/wait-and-test.sh && \
     chmod +x /app/wait-and-test.sh
 
-CMD ["sh", "-c", "echo 'Test client ready. Run: docker-compose run test-client /app/wait-and-test.sh <bucket-name>'"]
+CMD ["sh", "-c", "echo 'Test client ready. Run: docker compose run test-client /app/wait-and-test.sh <bucket-name>'"]

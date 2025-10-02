@@ -70,24 +70,24 @@ jobs:
 
           # Start services
           cd test
-          docker-compose up -d --build
+          docker compose up -d --build
 
           # Wait for services to be ready
           echo "Waiting for services to be ready..."
           sleep 10
 
           # Run test suite
-          if ! docker-compose exec -T test-client node index.js test ${TEST_BUCKET}; then
+          if ! docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
             echo "::error::Integration tests failed"
-            docker-compose logs s3-proxy
-            docker-compose down -v
+            docker compose logs s3-proxy
+            docker compose down -v
             exit 1
           fi
 
           echo "✅ Integration tests passed successfully"
 
           # Cleanup
-          docker-compose down -v
+          docker compose down -v
 
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'

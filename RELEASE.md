@@ -132,8 +132,8 @@ git push origin v1.2.3
 git checkout -b feature/my-feature
 
 # 2. Make changes and test locally
-docker-compose -f test/docker-compose.yml up --build
-docker-compose exec test-client node index.js test my-bucket
+docker compose -f test/docker-compose.yml up --build
+docker compose exec test-client node index.js test my-bucket
 
 # 3. Commit and push
 git add .

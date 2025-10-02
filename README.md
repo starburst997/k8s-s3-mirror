@@ -145,10 +145,10 @@ cp .env.example .env
 vim .env
 
 # Start services
-docker-compose up --build
+docker compose up --build
 
 # Run tests
-docker-compose exec test-client node index.js test my-test-bucket
+docker compose exec test-client node index.js test my-test-bucket
 ```
 
 ### Building from Source

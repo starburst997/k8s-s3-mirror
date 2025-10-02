@@ -13,33 +13,36 @@ This directory contains the Docker Compose test environment for the K8S S3 Mirro
 ## Quick Start
 
 1. Copy and configure environment:
+
 ```bash
 cp .env.example .env
 # Edit .env with your S3 credentials
 ```
 
 2. Start the test environment:
+
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 3. Run tests:
+
 ```bash
 # Full test suite
-docker-compose exec test-client node index.js test my-bucket
+docker compose exec test-client node index.js test my-bucket
 
 # Individual operations
-docker-compose exec test-client node index.js upload my-bucket test.txt /test-files/sample.txt
-docker-compose exec test-client node index.js list my-bucket
-docker-compose exec test-client node index.js download my-bucket test.txt /tmp/test.txt
-docker-compose exec test-client node index.js delete my-bucket test.txt
+docker compose exec test-client node index.js upload my-bucket test.txt /test-files/sample.txt
+docker compose exec test-client node index.js list my-bucket
+docker compose exec test-client node index.js download my-bucket test.txt /tmp/test.txt
+docker compose exec test-client node index.js delete my-bucket test.txt
 ```
 
 ## Services
 
 - **s3-proxy** - The main proxy service (port 8080)
 - **postgres** - PostgreSQL for file tracking (port 5432)
-- **dnsmasq** - Wildcard DNS for virtual-host style S3 (*.s3-proxy)
+- **dnsmasq** - Wildcard DNS for virtual-host style S3 (\*.s3-proxy)
 - **test-client** - Node.js client for testing
 
 ## Notes
