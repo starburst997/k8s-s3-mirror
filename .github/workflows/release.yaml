@@ -1,0 +1,173 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on semantic version tags (v1.2.3)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Need full history for changelog generation
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="v${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 ${VERSION}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, including all commits"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "Generating changelog from $PREV_TAG to $VERSION"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREV_TAG}..${VERSION})
+          fi
+
+          # Create changelog content
+          cat > CHANGELOG_CONTENT.md <<EOF
+          ## What's Changed
+
+          ### Commits
+          ${COMMITS}
+
+          ### Docker Images
+          - \`ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}\`
+          - \`ghcr.io/${{ github.repository }}:latest\` (if stable release)
+
+          ### Helm Chart
+          \`\`\`bash
+          helm repo add k8s-s3-mirror https://starburst997.github.io/k8s-s3-mirror/charts
+          helm repo update
+          helm upgrade --install s3-mirror k8s-s3-mirror/s3-mirror --version ${{ steps.version.outputs.VERSION_NUMBER }}
+          \`\`\`
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.VERSION }}
+          EOF
+
+          echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build Go binaries
+        run: |
+          # Build for multiple platforms
+          PLATFORMS=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64")
+
+          for PLATFORM in "${PLATFORMS[@]}"; do
+            OS=$(echo $PLATFORM | cut -d'/' -f1)
+            ARCH=$(echo $PLATFORM | cut -d'/' -f2)
+            OUTPUT_NAME="s3-proxy-${OS}-${ARCH}"
+
+            if [ "$OS" == "windows" ]; then
+              OUTPUT_NAME="${OUTPUT_NAME}.exe"
+            fi
+
+            echo "Building for $OS/$ARCH..."
+            GOOS=$OS GOARCH=$ARCH go build -ldflags="-X main.Version=${{ steps.version.outputs.VERSION }}" -o "dist/${OUTPUT_NAME}" .
+
+            # Create tar.gz archive (zip for Windows)
+            cd dist
+            if [ "$OS" == "windows" ]; then
+              zip "${OUTPUT_NAME%.exe}.zip" "$OUTPUT_NAME"
+            else
+              tar -czf "${OUTPUT_NAME}.tar.gz" "$OUTPUT_NAME"
+            fi
+            cd ..
+          done
+
+          # List built artifacts
+          ls -la dist/
+
+      - name: Log into registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION_NUMBER }}
+            ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.title=K8S S3 Mirror
+            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Update Helm chart version
+        run: |
+          # Update Chart.yaml version
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.VERSION_NUMBER }}/" helm/s3-mirror/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.VERSION_NUMBER }}\"/" helm/s3-mirror/Chart.yaml
+
+          # Update values.yaml image tag
+          sed -i "s/tag:.*/tag: \"${{ steps.version.outputs.VERSION }}\"/" helm/s3-mirror/values.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/s3-mirror -d dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body_path: CHANGELOG_CONTENT.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.tgz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Helm chart release
+        if: success()
+        run: |
+          # Commit and push Helm chart version updates
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/s3-mirror/Chart.yaml helm/s3-mirror/values.yaml
+          git diff --cached --exit-code || (git commit -m "chore: update helm chart to ${{ steps.version.outputs.VERSION }}" && git push origin HEAD:main)
