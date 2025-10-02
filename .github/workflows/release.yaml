@@ -41,42 +41,6 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 ${VERSION}^ 2>/dev/null || echo "")
-
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found, including all commits"
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
-          else
-            echo "Generating changelog from $PREV_TAG to $VERSION"
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREV_TAG}..${VERSION})
-          fi
-
-          # Create changelog content
-          cat > CHANGELOG_CONTENT.md <<EOF
-          ## What's Changed
-
-          ### Commits
-          ${COMMITS}
-
-          ### Docker Images
-          - \`ghcr.io/${{ github.repository_owner }}/s3-mirror:${{ steps.version.outputs.VERSION }}\`
-          - \`ghcr.io/${{ github.repository_owner }}/s3-mirror:latest\` (if stable release)
-
-          ### Helm Chart
-          \`\`\`bash
-          # Install from GitHub Container Registry (OCI)
-          helm install s3-mirror oci://ghcr.io/${{ github.repository_owner }}/s3-mirror --version ${{ steps.version.outputs.VERSION_NUMBER }}
-          \`\`\`
-
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.VERSION }}
-          EOF
-
-          echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_OUTPUT
-
       - name: Build Go binaries
         run: |
           # Build for multiple platforms
@@ -167,13 +131,12 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: Release ${{ steps.version.outputs.VERSION }}
-          body_path: CHANGELOG_CONTENT.md
+          generate_release_notes: true
           draft: false
           prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
           files: |
             dist/*.tar.gz
             dist/*.zip
-            dist/*.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
