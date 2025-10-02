@@ -14,5 +14,5 @@ home: https://github.com/starburst997/k8s-s3-mirror
 sources:
   - https://github.com/starburst997/k8s-s3-mirror
 maintainers:
-  - name: starburst997
+  - name: JD Boivin
     url: https://github.com/starburst997
