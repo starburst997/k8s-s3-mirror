@@ -48,9 +48,8 @@ Simply update your S3 endpoint - no other changes needed:
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 
 const s3 = new S3Client({
-  endpoint: "http://s3.local",
+  endpoint: "http://s3.local", // The proxy endpoint
   region: "us-east-1",
-  // No credentials needed - proxy handles auth
   // Supports both path-style and virtual-hosted-style requests
 })
 
