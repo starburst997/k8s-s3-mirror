@@ -78,18 +78,19 @@ func init() {
 	if !disableDatabase {
 		postgresURL = getEnv("POSTGRES_URL")
 		if postgresURL == "" {
+			disableDatabase = true
 			// Build URL from components if not provided
-			host := getEnvOrDefault("POSTGRES_HOST", "localhost")
-			port := getEnvOrDefault("POSTGRES_PORT", "5432")
-			user := getEnvOrDefault("POSTGRES_USER", "s3mirror")
-			password := getEnv("POSTGRES_PASSWORD")
-			database := getEnvOrDefault("POSTGRES_DB", "s3_mirror")
-			sslmode := getEnvOrDefault("POSTGRES_SSLMODE", "disable")
-
-			if password != "" {
-				postgresURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-					user, password, host, port, database, sslmode)
-			}
+			//host := getEnvOrDefault("POSTGRES_HOST", "localhost")
+			//port := getEnvOrDefault("POSTGRES_PORT", "5432")
+			//user := getEnvOrDefault("POSTGRES_USER", "s3mirror")
+			//password := getEnv("POSTGRES_PASSWORD")
+			//database := getEnvOrDefault("POSTGRES_DB", "s3_mirror")
+			//sslmode := getEnvOrDefault("POSTGRES_SSLMODE", "disable")
+			//
+			//if password != "" {
+			//	postgresURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			//		user, password, host, port, database, sslmode)
+			//}
 		}
 	}
 
