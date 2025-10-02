@@ -1,5 +1,0 @@
-# Ignore README and other non-essential files
-README.md
-*.log
-.git
-.gitignore
