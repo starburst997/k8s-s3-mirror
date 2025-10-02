@@ -9,14 +9,14 @@ A Kubernetes S3 proxy that mirrors operations to backup storage and maintains a 
 
 ## How It Works
 
-Your application connects to the proxy instead of S3 directly. The proxy forwards requests to your main S3 storage, then asynchronously mirrors to backup storage and logs to PostgreSQL (one table per bucket).
+Your application connects to the proxy instead of S3 directly. The proxy forwards requests to your main S3 storage, then asynchronously mirrors to backup storage and optionally logs to PostgreSQL (one table per bucket when configured).
 
 ## Quick Start
 
 ### Installation with Helm
 
 ```bash
-# Create values.yaml
+# Create values.yaml (minimal configuration without database)
 cat > values.yaml <<EOF
 s3:
   mainEndpoint: "https://s3.amazonaws.com"
@@ -27,8 +27,9 @@ s3:
   mirrorAccessKey: "your-b2-access-key"
   mirrorSecretKey: "your-b2-secret-key"
 
-postgresql:
-  url: "postgres://user:password@postgres:5432/s3_mirror"
+# Optional: Add PostgreSQL for inventory tracking
+# postgresql:
+#   url: "postgres://user:password@postgres:5432/s3_mirror"
 EOF
 
 # Install the chart from GitHub Container Registry
@@ -73,12 +74,13 @@ await s3.send(
 | `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint                        | Yes      |
 | `MIRROR_ACCESS_KEY`    | Mirror S3 access key                      | Yes      |
 | `MIRROR_SECRET_KEY`    | Mirror S3 secret key                      | Yes      |
-| `POSTGRES_URL`         | PostgreSQL connection string              | Yes\*    |
+| `POSTGRES_URL`         | PostgreSQL connection string\*            | No       |
 | `MIRROR_BUCKET_PREFIX` | Prefix for mirror bucket names            | No       |
-| `DISABLE_DATABASE`     | Disable database tracking                 | No       |
+| `DISABLE_DATABASE`     | Force disable database tracking\*\*       | No       |
 | `LOG_LEVEL`            | Logging level (debug/info/warn/error/off) | No       |
 
-\*Not required if `DISABLE_DATABASE=true`
+\*If not provided, database operations are automatically disabled
+\*\*Only needed to disable database when POSTGRES_URL is set
 
 ### Deployment Patterns
 
@@ -94,9 +96,9 @@ Deploy one proxy instance that multiple applications share:
 
 Each application gets its own proxy sidecar. See [`examples/sidecar-deployment.yaml`](examples/sidecar-deployment.yaml) for a complete example.
 
-## Database Schema
+## Database Schema (Optional)
 
-Each bucket gets its own table (`bucket_<bucketname>`) with the following structure:
+When PostgreSQL is configured, each bucket gets its own table (`bucket_<bucketname>`) with the following structure:
 
 ```sql
 CREATE TABLE bucket_my_data (

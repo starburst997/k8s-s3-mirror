@@ -313,10 +313,10 @@
 
           <div class="feature">
             <div class="feature-icon">📊</div>
-            <h3>Complete Inventory</h3>
+            <h3>Optional Inventory</h3>
             <p>
-              PostgreSQL-backed tracking of all objects with metadata, soft
-              deletes, and backup status
+              PostgreSQL-backed tracking when configured. Works perfectly
+              without database for simpler deployments
             </p>
           </div>
 
@@ -394,14 +394,15 @@
           \<br />
           &nbsp;&nbsp;--set mirrorS3.secretKey=<span class="string"
             >"YOUR_MIRROR_SECRET"</span
-          >
-          \<br />
-          &nbsp;&nbsp;--set postgres.url=<span class="string"
-            >"postgresql://user:pass@host:5432/db"</span
           ><br /><br />
 
-          <span class="comment"># Or install a specific version</span><br />
+          <span class="comment"># Optional: Add PostgreSQL for inventory tracking</span><br />
+          <span class="comment"># If omitted, proxy works without database logging</span><br />
           helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \<br />
+          &nbsp;&nbsp;--set postgres.url=<span class="string"
+            >"postgresql://user:pass@host:5432/db"</span
+          >
+          \<br />
           &nbsp;&nbsp;--version 1.0.1
         </div>
 
