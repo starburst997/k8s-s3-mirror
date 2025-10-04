@@ -121,7 +121,7 @@ git push origin v1.2.3
 
 - Package Helm chart
 - Push to GitHub Container Registry (OCI)
-- Available at: `oci://ghcr.io/starburst997/s3-mirror`
+- Available at: `oci://ghcr.io/starburst997/charts/s3-mirror`
 
 ## Development Workflow
 
@@ -183,13 +183,13 @@ docker pull ghcr.io/starburst997/s3-mirror:v1      # with v prefix also works
 ```bash
 # Install from GitHub Container Registry (OCI)
 # Latest version
-helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror
+helm install s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror
 
 # Install specific version
-helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror --version 1.2.3
+helm install s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror --version 1.2.3
 
 # Upgrade to latest
-helm upgrade s3-mirror oci://ghcr.io/starburst997/s3-mirror
+helm upgrade s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror
 ```
 
 ### Binary Downloads

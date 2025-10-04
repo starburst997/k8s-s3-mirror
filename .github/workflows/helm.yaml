@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'helm/**'
+      - "helm/**"
   release:
     types: [published]
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
           # Push to GitHub Container Registry using OCI
-          helm push s3-mirror-${CHART_VERSION}.tgz oci://ghcr.io/${OWNER_LOWER}
+          helm push s3-mirror-${CHART_VERSION}.tgz oci://ghcr.io/${OWNER_LOWER}/charts
 
           echo "Chart pushed to: ghcr.io/${OWNER_LOWER}/s3-mirror:${CHART_VERSION}"
           echo ""

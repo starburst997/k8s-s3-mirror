@@ -373,7 +373,7 @@
           <span class="comment"
             ># Install directly from GitHub Container Registry (OCI)</span
           ><br />
-          helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \<br />
+          helm install s3-mirror oci://ghcr.io/starburst997/charts \<br />
           &nbsp;&nbsp;--set mainS3.endpoint=<span class="string"
             >"https://s3.amazonaws.com"</span
           >
@@ -404,7 +404,7 @@
           <span class="comment"
             ># If omitted, proxy works without database logging</span
           ><br />
-          helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \<br />
+          helm install s3-mirror oci://ghcr.io/starburst997/charts \<br />
           &nbsp;&nbsp;--set postgres.url=<span class="string"
             >"postgresql://user:pass@host:5432/db"</span
           >

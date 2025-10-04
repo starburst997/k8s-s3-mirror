@@ -33,7 +33,7 @@ s3:
 EOF
 
 # Install the chart from GitHub Container Registry
-helm install s3-mirror oci://ghcr.io/starburst997/s3-mirror \
+helm install s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror \
   --namespace s3-mirror \
   --create-namespace \
   -f values.yaml
