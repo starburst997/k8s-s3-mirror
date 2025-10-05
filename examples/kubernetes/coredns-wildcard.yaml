@@ -1,0 +1,34 @@
+# CoreDNS Custom Configuration for Wildcard DNS Support
+# This enables *.s3.local to resolve to the s3-mirror service
+#
+# Installation:
+# 1. Apply the configuration:
+#    kubectl apply -f coredns-wildcard.yaml
+#
+# 2. Restart CoreDNS to load the config:
+#    kubectl rollout restart deployment coredns -n kube-system
+#
+# 3. Verify DNS resolution:
+#    kubectl run -it --rm dns-test --image=busybox --restart=Never -- nslookup test-bucket.s3.local
+#
+# Note: This configuration is for k3s clusters (uses IP 10.43.0.10)
+# For other Kubernetes distributions, update the forward IP:
+#   - Standard k8s: 10.96.0.10
+#   - Check your cluster: kubectl get svc kube-dns -n kube-system -o jsonpath='{.spec.clusterIP}'
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  # Enable wildcard domain support for *.s3.local
+  # To add more wildcard domains, add additional data keys (e.g., another.local.server)
+  # All custom DNS configs must be in this ONE ConfigMap
+  s3.local.server: |
+    s3.local:53 {
+      errors
+      cache 30
+      rewrite name regex (.+)\.s3\.local s3-mirror.s3-mirror.svc.cluster.local
+      forward . 10.43.0.10
+    }

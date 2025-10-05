@@ -39,6 +39,22 @@ helm install s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror \
   -f values.yaml
 ```
 
+### Wildcard DNS Setup (For Virtual-Hosted-Style URLs)
+
+If you want to use virtual-hosted-style S3 URLs (e.g., `http://my-bucket.s3.local`), you need to configure wildcard DNS in your cluster:
+
+```bash
+# Apply CoreDNS custom configuration
+kubectl apply -f examples/kubernetes/coredns-wildcard.yaml
+
+# Restart CoreDNS to load the config
+kubectl rollout restart deployment coredns -n kube-system
+```
+
+This enables `*.s3.local` to resolve to the s3-mirror service. See [`examples/kubernetes/coredns-wildcard.yaml`](examples/kubernetes/coredns-wildcard.yaml) for the full configuration.
+
+**Note:** If you only need path-style URLs (e.g., `http://s3.local/my-bucket/file.txt`), wildcard DNS is not required.
+
 ### Application Integration
 
 Simply update your S3 endpoint - no other changes needed:
@@ -90,6 +106,7 @@ Deploy one proxy instance that multiple applications share:
 
 ```yaml
 # All apps point to: http://s3.local
+# For wildcard support (*.s3.local), see "Wildcard DNS Setup" above
 ```
 
 #### Sidecar Pattern
