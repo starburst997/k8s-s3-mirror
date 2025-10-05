@@ -21,7 +21,7 @@ COPY main.go ./
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -o s3-proxy .
 
 # Final stage
-FROM --platform=$TARGETPLATFORM alpine:3.18
+FROM alpine:3.18
 
 # Install ca-certificates for HTTPS connections to S3 endpoints
 RUN apk --no-cache add ca-certificates
