@@ -1,11 +1,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "s3-mirror.fullname" . }}-config
-  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Values.namespace }}
   labels:
-    {{- include "s3-mirror.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 data:
-  MAIN_S3_ENDPOINT: {{ .Values.s3.mainEndpoint | quote }}
-  MIRROR_S3_ENDPOINT: {{ .Values.s3.mirrorEndpoint | quote }}
-  MIRROR_BUCKET_PREFIX: {{ .Values.s3.mirrorBucketPrefix | quote }}
+  {{- range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
