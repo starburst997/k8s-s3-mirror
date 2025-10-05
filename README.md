@@ -111,7 +111,7 @@ Deploy one proxy instance that multiple applications share:
 
 #### Sidecar Pattern
 
-Each application gets its own proxy sidecar. See [`examples/sidecar-deployment.yaml`](examples/sidecar-deployment.yaml) for a complete example.
+Each application gets its own proxy sidecar.
 
 ## Database Schema (Optional)
 
