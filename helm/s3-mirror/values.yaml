@@ -20,7 +20,7 @@ ingress:
     - host: "*.s3.local" # Change to your internal domain
       paths:
         - path: /(.*)
-          pathType: Prefix
+          pathType: ImplementationSpecific
   tls: [] # Configure TLS if needed for internal HTTPS
 
 imagePullSecrets: []
