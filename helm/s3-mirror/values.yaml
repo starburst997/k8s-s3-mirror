@@ -12,7 +12,7 @@ image:
 # Note: Path-style (forcePathStyle: true) works without any ingress
 ingress:
   enabled: true
-  className: nginx-internal # Use an internal ingress controller
+  className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     # Add other annotations as needed for your ingress controller
