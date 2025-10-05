@@ -106,9 +106,25 @@ jobs:
       - name: Package and Push Helm Chart
         working-directory: helm
         run: |
-          helm dependency update s3-mirror
-          helm package s3-mirror \
+          helm dependency update ${{ env.IMAGE_NAME }}
+          helm package ${{ env.IMAGE_NAME }} \
             --app-version=${{ steps.version.outputs.version }} \
             --version=${{ steps.version.outputs.version }}
-          helm push s3-mirror-${{ steps.version.outputs.version }}.tgz \
+          helm push ${{ env.IMAGE_NAME }}-${{ steps.version.outputs.version }}.tgz \
             oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+
+      - name: Make Docker Image Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user/packages/container/${{ github.repository_owner }}%2F${{ env.IMAGE_NAME }} \
+            -d '{"visibility":"public"}' || true
+
+      - name: Make Helm Chart Public
+        run: |
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user/packages/container/${{ github.repository_owner }}%2Fcharts%2F${{ env.IMAGE_NAME }} \
+            -d '{"visibility":"public"}' || true
