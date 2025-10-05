@@ -19,6 +19,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -39,9 +41,60 @@ var (
 	// Database connections cache per bucket
 	dbConnections = make(map[string]*sql.DB)
 	dbMutex       sync.RWMutex
+
+	// Prometheus metrics - kept lightweight for minimal performance impact
+	requestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "s3_proxy_request_duration_seconds",
+			Help: "Request latency in seconds",
+			// Optimized buckets for S3 operations (50ms to 30s)
+			Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30},
+		},
+		[]string{"method", "status_code"}, // Limited labels to avoid cardinality explosion
+	)
+
+	requestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "s3_proxy_requests_total",
+			Help: "Total number of S3 requests proxied",
+		},
+		[]string{"method", "status_code"},
+	)
+
+	mirrorOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "s3_proxy_mirror_operations_total",
+			Help: "Total mirror operations to backup S3",
+		},
+		[]string{"method", "status"}, // status: success/failure
+	)
+
+	activeOperations = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "s3_proxy_active_operations",
+			Help: "Currently active background operations",
+		},
+		[]string{"type"}, // type: mirror/database
+	)
+
+	requestSizeBytes = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "s3_proxy_request_size_bytes",
+			Help:    "Size of request body in bytes",
+			Buckets: prometheus.ExponentialBuckets(1024, 4, 10), // 1KB to ~1GB
+		},
+		[]string{"method"},
+	)
 )
 
 func init() {
+	// Register Prometheus metrics
+	prometheus.MustRegister(requestDuration)
+	prometheus.MustRegister(requestsTotal)
+	prometheus.MustRegister(mirrorOperations)
+	prometheus.MustRegister(activeOperations)
+	prometheus.MustRegister(requestSizeBytes)
+
 	// Configure logging
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -129,15 +182,26 @@ func main() {
 		log.Fatalf("Failed to parse main S3 endpoint: %v", err)
 	}
 
-	// Create HTTP handler
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Create HTTP mux to handle both /metrics and S3 proxy
+	mux := http.NewServeMux()
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// All other paths go to S3 proxy
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Skip metrics for /metrics endpoint
+		if r.URL.Path == "/metrics" {
+			http.NotFound(w, r)
+			return
+		}
 		handleProxyRequest(w, r, targetURL)
 	})
 
 	// Simple HTTP server
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: handler,
+		Handler: mux,
 	}
 
 	log.Info("Starting S3 proxy server on :8080...")
@@ -147,11 +211,19 @@ func main() {
 }
 
 func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url.URL) {
+	// Start timing for metrics
+	start := time.Now()
+
 	// Read the request body
 	var bodyBytes []byte
 	if req.Body != nil {
 		bodyBytes, _ = io.ReadAll(req.Body)
 		req.Body.Close()
+	}
+
+	// Record request size for PUT/POST operations
+	if len(bodyBytes) > 0 && (req.Method == "PUT" || req.Method == "POST") {
+		requestSizeBytes.WithLabelValues(req.Method).Observe(float64(len(bodyBytes)))
 	}
 
 	// Extract bucket and key for logging (supports both path-style and virtual-hosted style)
@@ -177,6 +249,10 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 
 	forwardReq, err := http.NewRequest(req.Method, forwardURL.String(), bytes.NewReader(bodyBytes))
 	if err != nil {
+		// Record metrics for failed request creation
+		statusCode := strconv.Itoa(http.StatusInternalServerError)
+		requestDuration.WithLabelValues(req.Method, statusCode).Observe(time.Since(start).Seconds())
+		requestsTotal.WithLabelValues(req.Method, statusCode).Inc()
 		http.Error(w, "Failed to create forward request", http.StatusInternalServerError)
 		return
 	}
@@ -198,6 +274,10 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 
 	resp, err := client.Do(forwardReq)
 	if err != nil {
+		// Record metrics for failed forwarding
+		statusCode := strconv.Itoa(http.StatusBadGateway)
+		requestDuration.WithLabelValues(req.Method, statusCode).Observe(time.Since(start).Seconds())
+		requestsTotal.WithLabelValues(req.Method, statusCode).Inc()
 		http.Error(w, "Failed to forward request to S3", http.StatusBadGateway)
 		log.Errorf("Failed to forward request: %v", err)
 		return
@@ -215,6 +295,11 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	// Copy response body
 	respBody, _ := io.ReadAll(resp.Body)
 	w.Write(respBody)
+
+	// Record request metrics
+	statusCode := strconv.Itoa(resp.StatusCode)
+	requestDuration.WithLabelValues(req.Method, statusCode).Observe(time.Since(start).Seconds())
+	requestsTotal.WithLabelValues(req.Method, statusCode).Inc()
 
 	// Handle background operations for successful requests
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 && bucket != "" && key != "" {
@@ -244,6 +329,10 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 		}
 		return
 	}
+
+	// Track active database operation
+	activeOperations.WithLabelValues("database").Inc()
+	defer activeOperations.WithLabelValues("database").Dec()
 
 	// Get or create database connection for bucket
 	bucketDB := getOrCreateBucketDB(bucket)
@@ -310,6 +399,10 @@ func handleDeleteRequest(bucket, key string, req *http.Request) {
 		return
 	}
 
+	// Track active database operation
+	activeOperations.WithLabelValues("database").Inc()
+	defer activeOperations.WithLabelValues("database").Dec()
+
 	// Get database connection for bucket
 	bucketDB := getOrCreateBucketDB(bucket)
 	if bucketDB == nil {
@@ -337,6 +430,10 @@ func handleDeleteRequest(bucket, key string, req *http.Request) {
 }
 
 func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Header) error {
+	// Track active mirror operation
+	activeOperations.WithLabelValues("mirror").Inc()
+	defer activeOperations.WithLabelValues("mirror").Dec()
+
 	// Apply bucket prefix if configured
 	mirrorBucket := bucket
 	if mirrorBucketPrefix != "" {
@@ -374,15 +471,19 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 
 	resp, err := client.Do(req)
 	if err != nil {
+		mirrorOperations.WithLabelValues(method, "failure").Inc()
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		mirrorOperations.WithLabelValues(method, "failure").Inc()
 		return fmt.Errorf("mirror request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	// Record successful mirror operation
+	mirrorOperations.WithLabelValues(method, "success").Inc()
 	return nil
 }
 

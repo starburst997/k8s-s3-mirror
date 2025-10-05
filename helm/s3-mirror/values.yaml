@@ -76,7 +76,10 @@ logging:
   level: "info"
 
 # Pod configuration
-podAnnotations: {}
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
 
 podSecurityContext:
   {}
