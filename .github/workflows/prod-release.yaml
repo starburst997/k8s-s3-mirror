@@ -1,0 +1,122 @@
+name: Production Release
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release-production:
+    name: Build and Release Production
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        run: |
+          # Fetch all tags
+          git fetch --tags
+
+          # Get latest stable production tag
+          LATEST_STABLE=$(git tag -l "v*" --sort=-version:refname | grep -v "dev\|rc\|pr" | head -n1)
+
+          # Get latest dev or rc tag to determine production version
+          LATEST_DEV_TAG=$(git tag -l "v*-dev" --sort=-version:refname | head -n1)
+          LATEST_RC_TAG=$(git tag -l "v*-rc.*" --sort=-version:refname | head -n1)
+
+          # Determine base version from dev/rc tags
+          if [ -z "$LATEST_DEV_TAG" ] && [ -z "$LATEST_RC_TAG" ]; then
+            # No dev/rc tags exist
+            if [ -z "$LATEST_STABLE" ]; then
+              # No tags at all, start at 1.0.0
+              VERSION="1.0.5"
+            else
+              # Only stable tags exist (direct main commits), increment minor
+              STABLE_VER=${LATEST_STABLE#v}
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$STABLE_VER"
+              MINOR=$((MINOR + 1))
+              VERSION="${MAJOR}.${MINOR}.0"
+            fi
+          else
+            # Use latest dev or rc tag
+            if [ -n "$LATEST_RC_TAG" ]; then
+              LATEST_TAG=$LATEST_RC_TAG
+            else
+              LATEST_TAG=$LATEST_DEV_TAG
+            fi
+
+            # Strip 'v' and suffix to get base version
+            BASE_VERSION=${LATEST_TAG#v}
+            BASE_VERSION=${BASE_VERSION%%-*}
+
+            # Check if this version already exists as stable
+            if git rev-parse "v${BASE_VERSION}" >/dev/null 2>&1; then
+              # Version already exists, increment minor (hotfix scenario)
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+              MINOR=$((MINOR + 1))
+              VERSION="${MAJOR}.${MINOR}.0"
+              echo "⚠️  Version ${BASE_VERSION} already exists, using ${VERSION} (hotfix)"
+            else
+              # Version doesn't exist, use it
+              VERSION="$BASE_VERSION"
+            fi
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Production Version: $VERSION"
+
+      - name: Create Version Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package and Push Helm Chart
+        working-directory: helm
+        run: |
+          helm dependency update s3-mirror
+          helm package s3-mirror \
+            --app-version=${{ steps.version.outputs.version }} \
+            --version=${{ steps.version.outputs.version }}
+          helm push s3-mirror-${{ steps.version.outputs.version }}.tgz \
+            oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.version }}
+          generateReleaseNotes: true
+          makeLatest: true

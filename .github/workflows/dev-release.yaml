@@ -1,0 +1,114 @@
+name: Dev Release
+
+on:
+  push:
+    branches:
+      - dev
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release-dev:
+    name: Build and Release Dev
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        run: |
+          # Fetch all tags
+          git fetch --tags
+
+          # Get latest stable (production) tag
+          LATEST_STABLE=$(git tag -l "v*" --sort=-version:refname | grep -v "dev\|rc\|pr" | head -n1)
+
+          # Get latest dev tag
+          LATEST_DEV=$(git tag -l "v*-dev" --sort=-version:refname | head -n1)
+
+          if [ -z "$LATEST_STABLE" ] && [ -z "$LATEST_DEV" ]; then
+            # No tags exist, start at 1.0.0-dev
+            MAJOR=1
+            MINOR=0
+            PATCH=5
+          elif [ -n "$LATEST_STABLE" ] && [ -z "$LATEST_DEV" ]; then
+            # Production release exists but no dev yet, bump minor
+            VERSION=${LATEST_STABLE#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [ -n "$LATEST_STABLE" ]; then
+            # Compare versions - if stable >= dev, we just released to prod
+            STABLE_VER=${LATEST_STABLE#v}
+            DEV_VER=${LATEST_DEV#v}
+            DEV_VER=${DEV_VER%%-*}
+
+            # Use sort -V to compare versions
+            NEWER=$(printf "%s\n%s" "$STABLE_VER" "$DEV_VER" | sort -V -r | head -n1)
+
+            if [ "$NEWER" == "$STABLE_VER" ] && [ "$STABLE_VER" != "$DEV_VER" ]; then
+              # Production is newer, bump minor from stable
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$STABLE_VER"
+              MINOR=$((MINOR + 1))
+              PATCH=0
+            else
+              # Continue from dev, increment patch
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$DEV_VER"
+              PATCH=$((PATCH + 1))
+            fi
+          else
+            # Only dev tags exist, increment patch
+            VERSION=${LATEST_DEV#v}
+            VERSION=${VERSION%%-*}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            PATCH=$((PATCH + 1))
+          fi
+
+          VERSION="${MAJOR}.${MINOR}.${PATCH}-dev"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Create Version Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package and Push Helm Chart
+        working-directory: helm
+        run: |
+          helm dependency update s3-mirror
+          helm package s3-mirror \
+            --app-version=${{ steps.version.outputs.version }} \
+            --version=${{ steps.version.outputs.version }}
+          helm push s3-mirror-${{ steps.version.outputs.version }}.tgz \
+            oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
