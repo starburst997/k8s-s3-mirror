@@ -42,86 +42,92 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 ## Release Process
 
-### Automated Releases (Recommended)
+### Automated Version Management
 
-1. **Create a new release via GitHub UI**:
+This project uses Git tags for version management with automatic versioning based on branch:
 
-   - Go to **Releases → Draft a new release**
-   - Create a new tag (e.g., `v1.2.3`)
-   - GitHub Actions will automatically:
-     - Run all tests
-     - Build multi-platform binaries
-     - Create Docker images
-     - Package Helm chart
-     - Generate changelog
-     - Publish GitHub release with artifacts
+- **Main branch**: Creates stable releases (e.g., `v1.2.0`)
+  - Automatically increments minor version from latest dev tag
+  - Creates production-ready Docker images and Helm charts
 
-2. **Manual release via workflow dispatch**:
-   - Go to **Actions → Release workflow**
-   - Click **Run workflow**
-   - Enter version number (without `v` prefix)
-   - Workflow will create tag and release
+- **Dev branch**: Creates development releases (e.g., `v1.2.3-dev`)
+  - Automatically increments patch version
+  - Creates development Docker images and Helm charts
 
-### Manual Release (Alternative)
+### How Releases Work
 
-```bash
-# 1. Create and push a tag
-git tag v1.2.3
-git push origin v1.2.3
+1. **Production Release (main branch)**:
+   ```bash
+   # Simply push to main branch
+   git checkout main
+   git merge dev  # or your feature branch
+   git push origin main
+   # GitHub Actions automatically:
+   # - Determines next version from dev tags
+   # - Creates release tag (v1.2.0)
+   # - Builds and publishes Docker image
+   # - Packages and publishes Helm chart
+   # - Creates GitHub release
+   ```
 
-# 2. GitHub Actions will automatically create the release
-```
+2. **Development Release (dev branch)**:
+   ```bash
+   # Push to dev branch
+   git checkout dev
+   git merge feature/my-feature
+   git push origin dev
+   # GitHub Actions automatically:
+   # - Increments patch version
+   # - Creates dev tag (v1.2.3-dev)
+   # - Builds and publishes dev Docker image
+   # - Packages and publishes dev Helm chart
+   ```
+
+### No Manual Version Bumps
+
+The Chart.yaml and application versions are set to `0.0.0` as placeholders. The CI/CD pipeline automatically replaces these with the correct version during the build process based on Git tags. This eliminates the need for version bump commits.
 
 ## CI/CD Workflows
 
-### 1. Build and Test (`build.yaml`)
+### 1. Production Deploy (`prod-deploy.yaml`)
 
 **Triggers**:
 
-- Push to `main` or `develop` branches
-- Pull requests to `main`
-- Manual workflow dispatch
-- Git tags (`v*`)
+- Push to `main` branch
 
 **Actions**:
 
-- Run Go unit tests
-- Run integration tests with real S3 endpoints
-- Build and push Docker images (on main/tags only)
-- Multi-platform support (linux/amd64, linux/arm64)
+- Automatically determine version from Git tags
+- Create production version tag (e.g., `v1.2.0`)
+- Build and push Docker images with version and `latest` tags
+- Package and push Helm chart to OCI registry
+- Create GitHub release with changelog
+- Deploy to production environment
 
-### 2. Release (`release.yaml`)
+### 2. Development Deploy (`dev-deploy.yaml`)
 
 **Triggers**:
 
-- Push of semantic version tags (`v*.*.*`)
-- Manual workflow dispatch with version input
+- Push to `dev` branch
 
 **Actions**:
 
-- Build Go binaries for multiple platforms:
-  - Linux (amd64, arm64)
-  - macOS (amd64, arm64)
-  - Windows (amd64)
-- Create Docker images with version tags
-- Package Helm chart
-- Generate changelog from commits
-- Create GitHub release with all artifacts
-- Update Helm chart repository
+- Automatically determine version from Git tags
+- Create development version tag (e.g., `v1.2.3-dev`)
+- Build and push Docker images with version and `dev` tags
+- Package and push Helm chart to OCI registry
+- Deploy to development environment
 
-### 3. Helm Chart (`helm.yaml`)
+### 3. GitHub Pages (`gh-pages.yaml`)
 
 **Triggers**:
 
-- Changes to `helm/**` directory
-- GitHub release published
-- Manual workflow dispatch
+- Push to `main` branch (for documentation changes)
 
 **Actions**:
 
-- Package Helm chart
-- Push to GitHub Container Registry (OCI)
-- Available at: `oci://ghcr.io/starburst997/charts/s3-mirror`
+- Deploy documentation to GitHub Pages
+- Available at project's GitHub Pages URL
 
 ## Development Workflow
 
