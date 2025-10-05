@@ -26,7 +26,7 @@ The proxy follows a simple, efficient design:
 
 1. **HTTP internally, HTTPS externally**: Simplified internal traffic, no TLS certificate management
 2. **Proxy handles all S3 auth**: Centralized credentials, apps don't need S3 keys
-3. **One database per bucket**: Better performance and isolation
+3. **One table per bucket**: Better performance and isolation
 4. **Async mirroring**: Non-blocking operations for minimal latency
 5. **Soft deletes in DB**: Tracks deletions without losing history
 
@@ -112,12 +112,6 @@ CREATE TABLE files (
 ├── main.go              # Core proxy server implementation
 ├── Dockerfile           # Container build configuration
 ├── go.mod / go.sum      # Go dependencies
-├── k8s/                 # Raw Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── secret.yaml      # S3 credentials
-│   ├── configmap.yaml   # S3 endpoints
-│   ├── deployment.yaml
-│   └── service.yaml
 └── helm/s3-mirror/      # Helm chart for deployment
     ├── Chart.yaml
     ├── values.yaml
