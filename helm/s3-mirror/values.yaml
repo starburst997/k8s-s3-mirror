@@ -60,7 +60,8 @@ secrets:
   POSTGRES_URL: "postgres://username:password@postgres-host:5432/s3_mirror"
 
 # Pod configuration
-podAnnotations: {}
+podAnnotations:
+  reloader.stakater.com/search: "true" # Auto-reload on ConfigMap/Secret changes
 
 podSecurityContext:
   {}
