@@ -112,19 +112,3 @@ jobs:
             --version=${{ steps.version.outputs.version }}
           helm push ${{ env.IMAGE_NAME }}-${{ steps.version.outputs.version }}.tgz \
             oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
-
-      - name: Make Docker Image Public
-        run: |
-          curl -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/user/packages/container/${{ github.repository_owner }}%2F${{ env.IMAGE_NAME }} \
-            -d '{"visibility":"public"}' || true
-
-      - name: Make Helm Chart Public
-        run: |
-          curl -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/user/packages/container/${{ github.repository_owner }}%2Fcharts%2F${{ env.IMAGE_NAME }} \
-            -d '{"visibility":"public"}' || true
