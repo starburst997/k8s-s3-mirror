@@ -19,6 +19,8 @@ jobs:
       - name: Determine Version
         id: version
         uses: starburst997/auto-version@v1
+        with:
+          update-major-minor: true
 
       - name: Build and Push Docker with Helm
         uses: starburst997/docker-helm-push@v1
