@@ -106,7 +106,6 @@ Deploy one proxy instance that multiple applications share:
 
 ```yaml
 # All apps point to: http://s3.local
-# For wildcard support (*.s3.local), see "Wildcard DNS Setup" above
 ```
 
 #### Sidecar Pattern
