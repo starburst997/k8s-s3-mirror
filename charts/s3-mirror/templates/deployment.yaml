@@ -45,14 +45,14 @@ spec:
         - name: {{ $key }}
           valueFrom:
             configMapKeyRef:
-              name: {{ $.Release.Name }}-config
+              name: {{ $.Chart.Name }}-config
               key: {{ $key }}
         {{- end }}
         {{- range $key, $value := .Values.secrets }}
         - name: {{ $key }}
           valueFrom:
             secretKeyRef:
-              name: {{ $.Release.Name }}-secrets
+              name: {{ $.Chart.Name }}-secrets
               key: {{ $key }}
         {{- end }}
         resources:

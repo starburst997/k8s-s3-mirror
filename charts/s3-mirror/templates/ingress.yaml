@@ -37,7 +37,7 @@ spec:
             pathType: ImplementationSpecific
             backend:
               service:
-                name: {{ $.Release.Name }}
+                name: {{ $.Chart.Name }}
                 port:
                   number: {{ $.Values.service.port }}
     {{- else if .Values.ingress.hosts }}
@@ -52,7 +52,7 @@ spec:
             pathType: {{ .pathType | default "Prefix" }}
             backend:
               service:
-                name: {{ $.Release.Name }}
+                name: {{ $.Chart.Name }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
@@ -62,7 +62,7 @@ spec:
             pathType: ImplementationSpecific
             backend:
               service:
-                name: {{ $.Release.Name }}
+                name: {{ $.Chart.Name }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
