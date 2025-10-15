@@ -1,0 +1,74 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run unit tests
+        run: |
+          go mod download
+          go test -v ./...
+
+      - name: Run integration tests
+        env:
+          MAIN_S3_ENDPOINT: ${{ secrets.TEST_MAIN_S3_ENDPOINT }}
+          MAIN_ACCESS_KEY: ${{ secrets.TEST_MAIN_ACCESS_KEY }}
+          MAIN_SECRET_KEY: ${{ secrets.TEST_MAIN_SECRET_KEY }}
+          MIRROR_S3_ENDPOINT: ${{ secrets.TEST_MIRROR_S3_ENDPOINT }}
+          MIRROR_ACCESS_KEY: ${{ secrets.TEST_MIRROR_ACCESS_KEY }}
+          MIRROR_SECRET_KEY: ${{ secrets.TEST_MIRROR_SECRET_KEY }}
+          MIRROR_BUCKET_PREFIX: "mirror-"
+          TEST_BUCKET: "s3-mirror"
+        run: |
+          # Create .env file for docker-compose
+          cat > test/.env <<EOF
+          MAIN_S3_ENDPOINT=${MAIN_S3_ENDPOINT}
+          MAIN_ACCESS_KEY=${MAIN_ACCESS_KEY}
+          MAIN_SECRET_KEY=${MAIN_SECRET_KEY}
+          MIRROR_S3_ENDPOINT=${MIRROR_S3_ENDPOINT}
+          MIRROR_ACCESS_KEY=${MIRROR_ACCESS_KEY}
+          MIRROR_SECRET_KEY=${MIRROR_SECRET_KEY}
+          MIRROR_BUCKET_PREFIX=${MIRROR_BUCKET_PREFIX}
+          EOF
+
+          # Start services
+          cd test
+          docker compose up -d --build
+
+          # Wait for services to be ready
+          echo "Waiting for services to be ready..."
+          sleep 10
+
+          # Run test suite
+          if ! docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
+            echo "::error::Integration tests failed"
+            docker compose logs s3-proxy
+            docker compose down -v
+            exit 1
+          fi
+
+          echo "✅ Integration tests passed successfully"
+
+          # Cleanup
+          docker compose down -v

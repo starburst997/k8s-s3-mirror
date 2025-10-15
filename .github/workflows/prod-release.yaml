@@ -6,8 +6,14 @@ on:
       - main
 
 jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
   release-production:
     name: Build and Release Production
+    needs: test
     runs-on: ubuntu-latest
     permissions: write-all
     steps:

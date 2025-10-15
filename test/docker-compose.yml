@@ -1,7 +1,7 @@
 services:
   # DNS resolver for wildcard subdomain support
   dnsmasq:
-    image: ghcr.io/starburst997/docker-compose-wildcard:v1
+    image: ghcr.io/starburst997/docker-compose-wildcard:latest
     container_name: dnsmasq
     environment:
       WILDCARD_DOMAIN: s3-proxy # Domain for wildcard resolution (also the target service name)
