@@ -68,6 +68,15 @@ services:
     dns: 172.20.0.253 # Use dnsmasq for DNS resolution
     environment:
       S3_PROXY_ENDPOINT: http://s3-proxy:8080
+      # Main S3 credentials for direct verification
+      MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT}
+      MAIN_ACCESS_KEY: ${MAIN_ACCESS_KEY}
+      MAIN_SECRET_KEY: ${MAIN_SECRET_KEY}
+      # Mirror S3 credentials for direct verification
+      MIRROR_S3_ENDPOINT: ${MIRROR_S3_ENDPOINT}
+      MIRROR_ACCESS_KEY: ${MIRROR_ACCESS_KEY}
+      MIRROR_SECRET_KEY: ${MIRROR_SECRET_KEY}
+      MIRROR_BUCKET_PREFIX: ${MIRROR_BUCKET_PREFIX}
     volumes:
       #- ./test-client:/app
       - ./test-files:/test-files

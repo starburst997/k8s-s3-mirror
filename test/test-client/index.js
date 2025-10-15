@@ -26,13 +26,47 @@ const s3Client = new S3Client({
   },
 })
 
+// Validate required environment variables
+if (!process.env.MAIN_S3_ENDPOINT || !process.env.MAIN_ACCESS_KEY || !process.env.MAIN_SECRET_KEY) {
+  console.error(chalk.red("❌ Missing required MAIN_S3 environment variables"))
+  process.exit(1)
+}
+
+if (!process.env.MIRROR_S3_ENDPOINT || !process.env.MIRROR_ACCESS_KEY || !process.env.MIRROR_SECRET_KEY) {
+  console.error(chalk.red("❌ Missing required MIRROR_S3 environment variables"))
+  process.exit(1)
+}
+
+// Configure direct S3 client for main S3
+const mainS3Client = new S3Client({
+  endpoint: process.env.MAIN_S3_ENDPOINT,
+  region: "us-east-1",
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.MAIN_ACCESS_KEY,
+    secretAccessKey: process.env.MAIN_SECRET_KEY,
+  },
+})
+
+// Configure direct S3 client for mirror S3
+const mirrorS3Client = new S3Client({
+  endpoint: process.env.MIRROR_S3_ENDPOINT,
+  region: "us-east-1",
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.MIRROR_ACCESS_KEY,
+    secretAccessKey: process.env.MIRROR_SECRET_KEY,
+  },
+})
+
 // Helper function to read file
 async function readFile(filePath) {
   return fs.promises.readFile(filePath)
 }
 
 // Upload file to S3
-async function uploadFile(bucket, key, filePath) {
+async function uploadFile(bucket, key, filePath, client = null) {
+  const activeClient = client || s3Client
   try {
     console.log(
       chalk.blue(
@@ -56,7 +90,7 @@ async function uploadFile(bucket, key, filePath) {
       },
     })
 
-    const response = await s3Client.send(command)
+    const response = await activeClient.send(command)
 
     console.log(chalk.green(`✅ Successfully uploaded ${chalk.bold(key)}`))
     console.log(chalk.gray(`   Size: ${fileStats.size} bytes`))
@@ -70,7 +104,8 @@ async function uploadFile(bucket, key, filePath) {
 }
 
 // Download file from S3
-async function downloadFile(bucket, key, outputPath) {
+async function downloadFile(bucket, key, outputPath, client = null) {
+  const activeClient = client || s3Client
   try {
     console.log(
       chalk.blue(
@@ -85,7 +120,7 @@ async function downloadFile(bucket, key, outputPath) {
       Key: key,
     })
 
-    const response = await s3Client.send(command)
+    const response = await activeClient.send(command)
     const stream = response.Body
 
     // Convert stream to buffer
@@ -111,7 +146,8 @@ async function downloadFile(bucket, key, outputPath) {
 }
 
 // Delete file from S3
-async function deleteFile(bucket, key) {
+async function deleteFile(bucket, key, client = null) {
+  const activeClient = client || s3Client
   try {
     console.log(chalk.blue(`🗑️  Deleting ${chalk.bold(`${bucket}/${key}`)}...`))
 
@@ -120,7 +156,7 @@ async function deleteFile(bucket, key) {
       Key: key,
     })
 
-    const response = await s3Client.send(command)
+    const response = await activeClient.send(command)
 
     console.log(chalk.green(`✅ Successfully deleted ${chalk.bold(key)}`))
 
@@ -132,7 +168,8 @@ async function deleteFile(bucket, key) {
 }
 
 // List files in bucket
-async function listFiles(bucket, prefix = "") {
+async function listFiles(bucket, prefix = "", client = null) {
+  const activeClient = client || s3Client
   try {
     console.log(
       chalk.blue(
@@ -148,7 +185,7 @@ async function listFiles(bucket, prefix = "") {
       MaxKeys: 100,
     })
 
-    const response = await s3Client.send(command)
+    const response = await activeClient.send(command)
 
     if (!response.Contents || response.Contents.length === 0) {
       console.log(chalk.yellow("   No files found"))
@@ -199,7 +236,13 @@ async function runTests(bucket) {
       }`
     )
   )
-  console.log(chalk.gray(`Test bucket: ${bucket}\n`))
+  console.log(chalk.gray(`Test bucket: ${bucket}`))
+  console.log(chalk.gray(`Main S3: ${process.env.MAIN_S3_ENDPOINT}`))
+  console.log(chalk.gray(`Mirror S3: ${process.env.MIRROR_S3_ENDPOINT}`))
+  if (process.env.MIRROR_BUCKET_PREFIX) {
+    console.log(chalk.gray(`Mirror bucket prefix: ${process.env.MIRROR_BUCKET_PREFIX}`))
+  }
+  console.log()
 
   const testFile = path.join(__dirname, "test-file.txt")
   const testContent = `Test file created at ${new Date().toISOString()}\nThis is a test of the S3 proxy system.`
@@ -211,33 +254,139 @@ async function runTests(bucket) {
     console.log(chalk.green(`✅ Created ${testFile}`))
 
     // Upload test
-    console.log(chalk.bold("\n2️⃣  Testing upload..."))
+    console.log(chalk.bold("\n2️⃣  Testing upload through proxy..."))
     await uploadFile(bucket, "test/file.txt", testFile)
 
+    // Wait a bit for async mirroring to complete
+    console.log(chalk.gray("   Waiting 2 seconds for async mirroring..."))
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // Verify upload on main S3
+    console.log(chalk.bold("\n   Verifying upload on main S3..."))
+    try {
+      await listFiles(bucket, "test/", mainS3Client)
+      console.log(chalk.green("   ✅ File exists on main S3"))
+    } catch (error) {
+      console.log(chalk.red(`   ❌ Failed to verify on main S3: ${error.message}`))
+      process.exit(1)
+    }
+
+    // Verify upload on mirror S3
+    console.log(chalk.bold("\n   Verifying upload on mirror S3..."))
+    const mirrorBucket = process.env.MIRROR_BUCKET_PREFIX ?
+      `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
+    try {
+      await listFiles(mirrorBucket, "test/", mirrorS3Client)
+      console.log(chalk.green("   ✅ File exists on mirror S3"))
+    } catch (error) {
+      console.log(chalk.red(`   ❌ Failed to verify on mirror S3: ${error.message}`))
+      process.exit(1)
+    }
+
     // List test
-    console.log(chalk.bold("\n3️⃣  Testing list..."))
+    console.log(chalk.bold("\n3️⃣  Testing list through proxy..."))
     await listFiles(bucket, "test/")
 
     // Download test
     console.log(chalk.bold("\n4️⃣  Testing download..."))
-    const downloadPath = path.join(__dirname, "downloaded-file.txt")
+
+    // Download through proxy
+    const downloadPath = path.join(__dirname, "downloaded-proxy.txt")
+    console.log(chalk.blue("\n   Downloading through proxy..."))
     await downloadFile(bucket, "test/file.txt", downloadPath)
 
-    // Verify content
+    // Verify proxy download
     const downloadedContent = await fs.promises.readFile(downloadPath, "utf-8")
     if (downloadedContent === testContent) {
-      console.log(chalk.green("✅ Downloaded content matches original"))
+      console.log(chalk.green("   ✅ Proxy download content matches original"))
     } else {
-      console.log(chalk.red("❌ Downloaded content does not match"))
+      console.log(chalk.red("   ❌ Proxy download content does not match"))
+      process.exit(1)
+    }
+
+    // Download directly from main S3
+    const mainDownloadPath = path.join(__dirname, "downloaded-main.txt")
+    console.log(chalk.blue("\n   Downloading directly from main S3..."))
+    try {
+      await downloadFile(bucket, "test/file.txt", mainDownloadPath, mainS3Client)
+      const mainContent = await fs.promises.readFile(mainDownloadPath, "utf-8")
+      if (mainContent === testContent) {
+        console.log(chalk.green("   ✅ Main S3 content matches original"))
+      } else {
+        console.log(chalk.red("   ❌ Main S3 content does not match"))
+        process.exit(1)
+      }
+      await fs.promises.unlink(mainDownloadPath)
+    } catch (error) {
+      console.log(chalk.red(`   ❌ Failed to download from main S3: ${error.message}`))
+      process.exit(1)
+    }
+
+    // Download directly from mirror S3
+    const mirrorDownloadPath = path.join(__dirname, "downloaded-mirror.txt")
+    const mirrorBucketDownload = process.env.MIRROR_BUCKET_PREFIX ?
+      `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
+    console.log(chalk.blue("\n   Downloading directly from mirror S3..."))
+    try {
+      await downloadFile(mirrorBucketDownload, "test/file.txt", mirrorDownloadPath, mirrorS3Client)
+      const mirrorContent = await fs.promises.readFile(mirrorDownloadPath, "utf-8")
+      if (mirrorContent === testContent) {
+        console.log(chalk.green("   ✅ Mirror S3 content matches original"))
+      } else {
+        console.log(chalk.red("   ❌ Mirror S3 content does not match"))
+        process.exit(1)
+      }
+      await fs.promises.unlink(mirrorDownloadPath)
+    } catch (error) {
+      console.log(chalk.red(`   ❌ Failed to download from mirror S3: ${error.message}`))
+      process.exit(1)
     }
 
     // Delete test
-    console.log(chalk.bold("\n5️⃣  Testing delete..."))
+    console.log(chalk.bold("\n5️⃣  Testing delete through proxy..."))
     await deleteFile(bucket, "test/file.txt")
 
-    // Verify deletion
+    // Wait for async deletion to propagate
+    console.log(chalk.gray("   Waiting 2 seconds for async deletion..."))
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // Verify deletion on proxy
     console.log(chalk.bold("\n6️⃣  Verifying deletion..."))
-    await listFiles(bucket, "test/")
+    console.log(chalk.blue("\n   Checking proxy..."))
+    const proxyFiles = await listFiles(bucket, "test/")
+    if (proxyFiles.length === 0) {
+      console.log(chalk.green("   ✅ File deleted from proxy view"))
+    }
+
+    // Verify deletion on main S3
+    console.log(chalk.blue("\n   Checking main S3..."))
+    try {
+      const mainFiles = await listFiles(bucket, "test/", mainS3Client)
+      if (mainFiles.length === 0) {
+        console.log(chalk.green("   ✅ File deleted from main S3"))
+      } else {
+        console.log(chalk.red("   ❌ File still exists on main S3"))
+        process.exit(1)
+      }
+    } catch (error) {
+      console.log(chalk.gray(`   Note: ${error.message}`))
+    }
+
+    // Verify deletion on mirror S3
+    console.log(chalk.blue("\n   Checking mirror S3..."))
+    const mirrorBucketDelete = process.env.MIRROR_BUCKET_PREFIX ?
+      `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
+    try {
+      const mirrorFiles = await listFiles(mirrorBucketDelete, "test/", mirrorS3Client)
+      if (mirrorFiles.length === 0) {
+        console.log(chalk.green("   ✅ File deleted from mirror S3"))
+      } else {
+        console.log(chalk.red("   ❌ File still exists on mirror S3"))
+        process.exit(1)
+      }
+    } catch (error) {
+      console.log(chalk.gray(`   Note: ${error.message}`))
+    }
 
     // Cleanup
     await fs.promises.unlink(testFile)
