@@ -45,7 +45,6 @@ secrets/
 
 # Helm package files
 *.tgz
-charts/
 
 # Build directories
 bin/
