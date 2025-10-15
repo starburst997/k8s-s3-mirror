@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ .Chart.Name }}
   namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/instance: {{ .Chart.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
@@ -13,7 +13,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/instance: {{ .Chart.Name }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -22,7 +22,7 @@ spec:
       {{- end }}
       labels:
         app.kubernetes.io/name: {{ .Chart.Name }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/instance: {{ .Chart.Name }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
