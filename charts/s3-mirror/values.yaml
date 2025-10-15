@@ -16,11 +16,17 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     # Add other annotations as needed for your ingress controller
-  hosts:
-    - host: "*.s3.local" # Change to your internal domain
-      paths:
-        - path: /(.*)
-          pathType: ImplementationSpecific
+
+  # Simple mode: just specify a host (uses path: /(.*) and pathType: ImplementationSpecific by default)
+  host: "*.s3.local" # Change to your internal domain
+
+  # Advanced mode: full control over hosts and paths (uncomment and remove 'host' above to use)
+  # hosts:
+  #   - host: "*.s3.local"
+  #     paths:
+  #       - path: /(.*)
+  #         pathType: ImplementationSpecific
+
   tls: [] # Configure TLS if needed for internal HTTPS
 
 imagePullSecrets: []

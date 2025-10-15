@@ -28,10 +28,25 @@ spec:
     {{- end }}
   {{- end }}
   rules:
+    {{- if .Values.ingress.host }}
+    {{- /* Simple mode: just specify a host string */}}
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $.Release.Name }}
+                port:
+                  number: {{ $.Values.service.port }}
+    {{- else if .Values.ingress.hosts }}
+    {{- /* Advanced mode: full control over hosts and paths */}}
     {{- range .Values.ingress.hosts }}
     - host: {{ .host | quote }}
       http:
         paths:
+          {{- if .paths }}
           {{- range .paths }}
           - path: {{ .path }}
             pathType: {{ .pathType | default "Prefix" }}
@@ -41,5 +56,16 @@ spec:
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
+          {{- else }}
+          {{- /* Default paths if not specified */}}
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $.Release.Name }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}
     {{- end }}
 {{- end }}
