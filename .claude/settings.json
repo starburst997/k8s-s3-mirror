@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "common@jd": true
+  },
+  "extraKnownMarketplaces": {
+    "jd": {
+      "source": {
+        "source": "github",
+        "repo": "starburst997/claude"
+      }
+    }
+  }
+}

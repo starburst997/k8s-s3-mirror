@@ -7,6 +7,7 @@
 
 # Go binary
 s3-proxy
+s3-mirror
 cert-gen
 
 # Test binary, built with `go test -c`

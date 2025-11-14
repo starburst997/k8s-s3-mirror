@@ -53,24 +53,3 @@ spec:
       targetPort: 3000
   selector:
     app: sample-app
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: sample-app
-  namespace: s3-test
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: s3-test.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: sample-app
-                port:
-                  number: 80

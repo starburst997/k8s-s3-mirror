@@ -1,0 +1,16 @@
+name: Github Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+
+permissions:
+  id-token: write
+
+jobs:
+  deploy:
+    uses: starburst997/workflows/.github/workflows/gh-pages.yml@v1
+    secrets: inherit

@@ -1,4 +1,4 @@
-name: Production Release
+name: Production Deploy
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
 jobs:
   test:
     name: Test
-    uses: ./.github/workflows/test.yaml
+    uses: ./.github/workflows/test.yml
     secrets: inherit
 
   release-production:
-    name: Build and Release Production
+    name: Deploy to Production
     needs: test
     runs-on: ubuntu-latest
     permissions: write-all
@@ -35,14 +35,15 @@ jobs:
         uses: starburst997/auto-version@v1
         with:
           update-major-minor: true
+          git-push: false
 
       - name: Build and Push Docker with Helm
         uses: starburst997/docker-helm-push@v1
         with:
-          image-name: s3-mirror
+          additional-tags: latest
           version: ${{ steps.version.outputs.version }}
           version-breakdown: true
-          additional-tags: latest
+          git-push: true
 
       - name: Generate changelog and create release
         uses: starburst997/commits-logs@v1

@@ -1,0 +1,13 @@
+name: JD Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  id-token: write
+
+jobs:
+  review:
+    uses: starburst997/workflows/.github/workflows/jd-review.yml@v1
+    secrets: inherit

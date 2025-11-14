@@ -1,0 +1,19 @@
+name: JD Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned, labeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  id-token: write
+
+jobs:
+  jd:
+    uses: starburst997/workflows/.github/workflows/jd.yml@v1
+    secrets: inherit
