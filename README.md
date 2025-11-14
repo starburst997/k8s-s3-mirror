@@ -95,9 +95,9 @@ await s3.send(
 | `DISABLE_DATABASE`     | Force disable database tracking\*\*\*         | No       |
 | `LOG_LEVEL`            | Logging level (debug/info/warn/error/off)     | No       |
 
-\*If not provided, database operations are automatically disabled
-\*\*Recommended when using domain with dots (e.g., `s3.local`). Improves path-style vs virtual-hosted detection
-\*\*\*Only needed to disable database when POSTGRES_URL is set
+- \* If not provided, database operations are automatically disabled
+- \*\* Recommended when using domain with dots (e.g., `s3.local`). Improves path-style vs virtual-hosted detection
+- \*\*\* Only needed to disable database when POSTGRES_URL is set
 
 ### Deployment Patterns
 
