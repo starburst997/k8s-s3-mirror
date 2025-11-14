@@ -29,6 +29,7 @@ data:
     s3.local:53 {
       errors
       cache 30
+      rewrite name s3.local s3-mirror.s3-mirror.svc.cluster.local
       rewrite name regex (.+)\.s3\.local s3-mirror.s3-mirror.svc.cluster.local
       forward . 10.43.0.10
     }
