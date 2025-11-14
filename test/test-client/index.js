@@ -368,7 +368,8 @@ async function runTests(bucket) {
   const timestamp = Date.now()
   const testFile = path.join(__dirname, "test-file.txt")
   const testContent = `Test file created at ${new Date().toISOString()}\nThis is a test of the S3 proxy system.`
-  const testKey = `test/file-${timestamp}.txt`
+  const testFolder = `test-${timestamp}`
+  const testKey = `${testFolder}/file-${timestamp}.txt`
 
   try {
     // Create test file
@@ -408,7 +409,7 @@ async function runTests(bucket) {
 
     // List test
     console.log(chalk.bold("\n3️⃣  Testing list through proxy..."))
-    await listFiles(bucket, "test/")
+    await listFiles(bucket, testFolder + "/")
 
     // Download test
     console.log(chalk.bold("\n4️⃣  Testing download..."))
@@ -476,7 +477,7 @@ async function runTests(bucket) {
     // Verify deletion on proxy
     console.log(chalk.bold("\n6️⃣  Verifying deletion..."))
     console.log(chalk.blue("\n   Checking proxy..."))
-    const proxyFiles = await listFiles(bucket, "test/")
+    const proxyFiles = await listFiles(bucket, testFolder + "/")
     if (proxyFiles.length === 0) {
       console.log(chalk.green("   ✅ File deleted from proxy view"))
     }
@@ -484,7 +485,7 @@ async function runTests(bucket) {
     // Verify deletion on main S3
     console.log(chalk.blue("\n   Checking main S3..."))
     try {
-      const mainFiles = await listFiles(bucket, "test/", mainS3Client)
+      const mainFiles = await listFiles(bucket, testFolder + "/", mainS3Client)
       if (mainFiles.length === 0) {
         console.log(chalk.green("   ✅ File deleted from main S3"))
       } else {
@@ -500,7 +501,7 @@ async function runTests(bucket) {
     const mirrorBucketDelete = process.env.MIRROR_BUCKET_PREFIX ?
       `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
     try {
-      const mirrorFiles = await listFiles(mirrorBucketDelete, "test/", mirrorS3Client)
+      const mirrorFiles = await listFiles(mirrorBucketDelete, testFolder + "/", mirrorS3Client)
       if (mirrorFiles.length === 0) {
         console.log(chalk.green("   ✅ File deleted from mirror S3"))
       } else {

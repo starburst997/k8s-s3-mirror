@@ -417,17 +417,22 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 	// Use the same request style (path-style or virtual-hosted) as the original request
 	if isVirtualHosted {
 		// Virtual-hosted style: bucket is in hostname, key is in path
-		// The URL path becomes just the key
 		if key != "" {
 			mirrorURL.Path = "/" + key
 		} else {
 			mirrorURL.Path = "/"
 		}
-		log.Debugf("Using virtual-hosted style for mirror: bucket=%s, key=%s", mirrorBucket, key)
+		// Set Host to include bucket
+		mirrorHost := mirrorURL.Host
+		if mirrorHost == "" {
+			mirrorHost = mirrorURL.Hostname()
+		}
+		mirrorURL.Host = mirrorBucket + "." + mirrorHost
+		log.Debugf("Using virtual-hosted style for mirror: %s%s", mirrorURL.Host, mirrorURL.Path)
 	} else {
 		// Path-style: both bucket and key in path
 		mirrorURL.Path = fmt.Sprintf("/%s/%s", mirrorBucket, key)
-		log.Debugf("Using path-style for mirror: bucket=%s, key=%s", mirrorBucket, key)
+		log.Debugf("Using path-style for mirror: %s%s", mirrorURL.Host, mirrorURL.Path)
 	}
 
 	// Create new request for mirror
