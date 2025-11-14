@@ -214,10 +214,14 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	// Create new request to forward to main S3
 	forwardURL := *targetURL
 
+	// Track if original request was virtual-hosted style
+	isVirtualHosted := false
+
 	// Determine if this is virtual-hosted style and convert to path-style for forwarding
 	// (Most S3-compatible services support path-style, and it's simpler for proxying)
 	if bucket != "" && !strings.HasPrefix(req.URL.Path, "/"+bucket) {
 		// This was virtual-hosted style, convert to path-style
+		isVirtualHosted = true
 		if key != "" {
 			forwardURL.Path = "/" + bucket + "/" + key
 		} else {
@@ -243,7 +247,8 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	}
 
 	// Sign the request with main S3 credentials
-	signRequestV4(forwardReq, mainAccessKey, mainSecretKey, "us-east-1", "s3", bodyBytes)
+	// Pass bucket info for proper Host header handling
+	signRequestV4WithBucket(forwardReq, mainAccessKey, mainSecretKey, "us-east-1", "s3", bodyBytes, bucket, isVirtualHosted)
 
 	// Forward the request using shared client
 	resp, err := httpClient.Do(forwardReq)
@@ -271,12 +276,15 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 		// Only log successful operations at debug level to reduce log volume
 		log.Debugf("S3 operation: %s %s/%s - Status: %d", req.Method, bucket, key, resp.StatusCode)
 
+		// Capture isVirtualHosted for the goroutine
+		isVirtual := isVirtualHosted
+
 		go func() {
 			switch req.Method {
 			case "PUT", "POST":
-				handlePutRequest(bucket, key, req, bodyBytes, resp)
+				handlePutRequest(bucket, key, req, bodyBytes, resp, isVirtual)
 			case "DELETE":
-				handleDeleteRequest(bucket, key, req)
+				handleDeleteRequest(bucket, key, req, isVirtual)
 			}
 		}()
 	} else if resp.StatusCode >= 400 {
@@ -285,11 +293,11 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	}
 }
 
-func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *http.Response) {
+func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *http.Response, isVirtualHosted bool) {
 	// Skip database operations if disabled
 	if disableDatabase {
 		// Just mirror to backup S3
-		if err := mirrorToBackupS3(bucket, key, req.Method, body, req.Header); err != nil {
+		if err := mirrorToBackupS3(bucket, key, req.Method, body, req.Header, isVirtualHosted); err != nil {
 			log.Errorf("Failed to mirror to backup S3: %v", err)
 		}
 		return
@@ -337,7 +345,7 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 	}
 
 	// Mirror to backup S3
-	if err := mirrorToBackupS3(bucket, key, req.Method, body, req.Header); err != nil {
+	if err := mirrorToBackupS3(bucket, key, req.Method, body, req.Header, isVirtualHosted); err != nil {
 		log.Errorf("Failed to mirror to backup S3: %v", err)
 	} else {
 		// Mark as backed up
@@ -350,11 +358,11 @@ func handlePutRequest(bucket, key string, req *http.Request, body []byte, resp *
 	}
 }
 
-func handleDeleteRequest(bucket, key string, req *http.Request) {
+func handleDeleteRequest(bucket, key string, req *http.Request, isVirtualHosted bool) {
 	// Skip database operations if disabled
 	if disableDatabase {
 		// Just mirror delete to backup S3
-		if err := mirrorToBackupS3(bucket, key, "DELETE", nil, req.Header); err != nil {
+		if err := mirrorToBackupS3(bucket, key, "DELETE", nil, req.Header, isVirtualHosted); err != nil {
 			log.Errorf("Failed to mirror delete to backup S3: %v", err)
 		}
 		return
@@ -381,12 +389,12 @@ func handleDeleteRequest(bucket, key string, req *http.Request) {
 	}
 
 	// Mirror delete to backup S3
-	if err := mirrorToBackupS3(bucket, key, "DELETE", nil, req.Header); err != nil {
+	if err := mirrorToBackupS3(bucket, key, "DELETE", nil, req.Header, isVirtualHosted); err != nil {
 		log.Errorf("Failed to mirror delete to backup S3: %v", err)
 	}
 }
 
-func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Header) error {
+func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Header, isVirtualHosted bool) error {
 	// Apply bucket prefix if configured
 	mirrorBucket := bucket
 	if mirrorBucketPrefix != "" {
@@ -399,7 +407,22 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 	if err != nil {
 		return err
 	}
-	mirrorURL.Path = fmt.Sprintf("/%s/%s", mirrorBucket, key)
+
+	// Use the same request style (path-style or virtual-hosted) as the original request
+	if isVirtualHosted {
+		// Virtual-hosted style: bucket is in hostname, key is in path
+		// The URL path becomes just the key
+		if key != "" {
+			mirrorURL.Path = "/" + key
+		} else {
+			mirrorURL.Path = "/"
+		}
+		log.Debugf("Using virtual-hosted style for mirror: bucket=%s, key=%s", mirrorBucket, key)
+	} else {
+		// Path-style: both bucket and key in path
+		mirrorURL.Path = fmt.Sprintf("/%s/%s", mirrorBucket, key)
+		log.Debugf("Using path-style for mirror: bucket=%s, key=%s", mirrorBucket, key)
+	}
 
 	// Create new request for mirror
 	req, err := http.NewRequest(method, mirrorURL.String(), bytes.NewReader(body))
@@ -414,8 +437,8 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 		}
 	}
 
-	// Sign request with mirror credentials
-	signRequestV4(req, mirrorAccessKey, mirrorSecretKey, "us-east-1", "s3", body)
+	// Sign request with mirror credentials using the same style as the original request
+	signRequestV4WithBucket(req, mirrorAccessKey, mirrorSecretKey, "us-east-1", "s3", body, mirrorBucket, isVirtualHosted)
 
 	// Send request using shared client
 	resp, err := httpClient.Do(req)
@@ -432,7 +455,7 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 	return nil
 }
 
-func signRequestV4(req *http.Request, accessKey, secretKey, region, service string, payload []byte) {
+func signRequestV4WithBucket(req *http.Request, accessKey, secretKey, region, service string, payload []byte, bucket string, isVirtualHosted bool) {
 	// AWS Signature Version 4 signing
 	now := time.Now().UTC()
 	dateStamp := now.Format("20060102")
@@ -445,17 +468,37 @@ func signRequestV4(req *http.Request, accessKey, secretKey, region, service stri
 	payloadHashStr := hex.EncodeToString(payloadHash[:])
 	req.Header.Set("X-Amz-Content-Sha256", payloadHashStr)
 
+	// For virtual-hosted style requests, set the Host header to include the bucket
+	// This ensures the signature matches what S3 expects
+	if isVirtualHosted && bucket != "" && req.URL.Host != "" {
+		// Construct virtual-hosted style host: bucket.endpoint
+		req.Host = bucket + "." + req.URL.Host
+		log.Debugf("Set virtual-hosted Host header: %s", req.Host)
+	}
+
 	// Create canonical request
 	canonicalHeaders := createCanonicalHeaders(req)
 	signedHeaders := createSignedHeaders(req)
+
+	// Normalize the path for signature (empty path should be "/")
+	canonicalURI := req.URL.Path
+	if canonicalURI == "" {
+		canonicalURI = "/"
+	}
+
+	// AWS Signature V4 requires query parameters to be sorted and properly encoded
+	canonicalQueryString := createCanonicalQueryString(req)
+
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
 		req.Method,
-		req.URL.Path,
-		req.URL.RawQuery,
+		canonicalURI,
+		canonicalQueryString,
 		canonicalHeaders,
 		signedHeaders,
 		payloadHashStr,
 	)
+
+	log.Debugf("Canonical Request:\n%s", canonicalRequest)
 
 	// Create string to sign
 	algorithm := "AWS4-HMAC-SHA256"
@@ -524,6 +567,44 @@ func createSignedHeaders(req *http.Request) string {
 	headers = append(headers, "host")
 	sort.Strings(headers)
 	return strings.Join(headers, ";")
+}
+
+func createCanonicalQueryString(req *http.Request) string {
+	// Parse query parameters
+	values := req.URL.Query()
+
+	// If no query parameters, return empty string
+	if len(values) == 0 {
+		return ""
+	}
+
+	// Sort parameter names
+	var keys []string
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build canonical query string
+	var parts []string
+	for _, k := range keys {
+		// Get all values for this key and sort them
+		paramValues := values[k]
+		sort.Strings(paramValues)
+
+		// AWS SigV4 requires proper URL encoding
+		encodedKey := url.QueryEscape(k)
+		for _, v := range paramValues {
+			encodedValue := url.QueryEscape(v)
+			if v == "" {
+				parts = append(parts, encodedKey+"=")
+			} else {
+				parts = append(parts, encodedKey+"="+encodedValue)
+			}
+		}
+	}
+
+	return strings.Join(parts, "&")
 }
 
 func getSigningKey(secretKey, dateStamp, region, service string) []byte {
