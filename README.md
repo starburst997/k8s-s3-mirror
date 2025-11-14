@@ -81,21 +81,23 @@ await s3.send(
 
 ### Environment Variables
 
-| Variable               | Description                               | Required |
-| ---------------------- | ----------------------------------------- | -------- |
-| `MAIN_S3_ENDPOINT`     | Primary S3 endpoint                       | Yes      |
-| `MAIN_ACCESS_KEY`      | Primary S3 access key                     | Yes      |
-| `MAIN_SECRET_KEY`      | Primary S3 secret key                     | Yes      |
-| `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint                        | Yes      |
-| `MIRROR_ACCESS_KEY`    | Mirror S3 access key                      | Yes      |
-| `MIRROR_SECRET_KEY`    | Mirror S3 secret key                      | Yes      |
-| `POSTGRES_URL`         | PostgreSQL connection string\*            | No       |
-| `MIRROR_BUCKET_PREFIX` | Prefix for mirror bucket names            | No       |
-| `DISABLE_DATABASE`     | Force disable database tracking\*\*       | No       |
-| `LOG_LEVEL`            | Logging level (debug/info/warn/error/off) | No       |
+| Variable               | Description                                   | Required |
+| ---------------------- | --------------------------------------------- | -------- |
+| `MAIN_S3_ENDPOINT`     | Primary S3 endpoint                           | Yes      |
+| `MAIN_ACCESS_KEY`      | Primary S3 access key                         | Yes      |
+| `MAIN_SECRET_KEY`      | Primary S3 secret key                         | Yes      |
+| `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint                            | Yes      |
+| `MIRROR_ACCESS_KEY`    | Mirror S3 access key                          | Yes      |
+| `MIRROR_SECRET_KEY`    | Mirror S3 secret key                          | Yes      |
+| `POSTGRES_URL`         | PostgreSQL connection string\*                | No       |
+| `MIRROR_BUCKET_PREFIX` | Prefix for mirror bucket names                | No       |
+| `PROXY_DOMAIN`         | Domain for virtual-hosted style detection\*\* | No       |
+| `DISABLE_DATABASE`     | Force disable database tracking\*\*\*         | No       |
+| `LOG_LEVEL`            | Logging level (debug/info/warn/error/off)     | No       |
 
 \*If not provided, database operations are automatically disabled
-\*\*Only needed to disable database when POSTGRES_URL is set
+\*\*Recommended when using domain with dots (e.g., `s3.local`). Improves path-style vs virtual-hosted detection
+\*\*\*Only needed to disable database when POSTGRES_URL is set
 
 ### Deployment Patterns
 

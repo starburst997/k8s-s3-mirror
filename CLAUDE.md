@@ -29,6 +29,7 @@ The proxy follows a simple, efficient design:
 3. **One table per bucket**: Better performance and isolation
 4. **Async mirroring**: Non-blocking operations for minimal latency
 5. **Soft deletes in DB**: Tracks deletions without losing history
+6. **Dual request style support**: Handles both path-style (`/bucket/key`) and virtual-hosted (`bucket.domain/key`) S3 requests
 
 ## Implementation Details
 
@@ -144,15 +145,24 @@ Dynamically creates PostgreSQL database for each bucket on first access.
 
 ### `extractBucketAndKey()`
 
-Parses S3 path to extract bucket name and object key.
+Parses S3 requests to extract bucket name and object key, supporting both:
+
+- **Path-style**: `/bucket-name/object-key` - bucket in URL path
+- **Virtual-hosted style**: `bucket-name.endpoint/object-key` - bucket in hostname
+
+The function intelligently detects the request style:
+- Checks if the path contains the bucket name (path-style)
+- Checks if hostname has a bucket subdomain (virtual-hosted)
+- Filters out common service names (`s3`, `localhost`, `minio`, etc.) to avoid false positives
 
 ## Important Implementation Notes
 
 1. **No TLS complexity**: Service runs on HTTP port 8080 internally
 2. **Async operations**: DB writes and mirroring are non-blocking (goroutines)
-3. **Database naming**: Bucket names sanitized with regex for DB names
+3. **Database naming**: Bucket names sanitized with regex for table names
 4. **Soft deletes**: DELETE operations mark `deleted=true` in DB, don't remove records
 5. **Region hardcoded**: Currently uses `us-east-1` for signature - could be made configurable
+6. **Dual S3 styles**: Supports both path-style and virtual-hosted style automatically
 
 ## Known Limitations
 

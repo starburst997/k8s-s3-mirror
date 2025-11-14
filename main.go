@@ -33,6 +33,7 @@ var (
 	mirrorBucketPrefix string
 	postgresURL        string
 	disableDatabase    bool
+	proxyDomain        string // Domain for virtual-hosted style detection (e.g., "s3.local")
 
 	// Database connection pool
 	db *sql.DB
@@ -70,6 +71,7 @@ func init() {
 	mirrorAccessKey = getEnv("MIRROR_ACCESS_KEY")
 	mirrorSecretKey = getEnv("MIRROR_SECRET_KEY")
 	mirrorBucketPrefix = getEnvOrDefault("MIRROR_BUCKET_PREFIX", "")
+	proxyDomain = getEnvOrDefault("PROXY_DOMAIN", "") // Optional: for virtual-hosted style detection
 
 	// Check if database tracking should be disabled
 	disableDatabase = getEnvOrDefault("DISABLE_DATABASE", "false") == "true"
@@ -495,51 +497,61 @@ func hmacSHA256(key, data []byte) []byte {
 }
 
 func extractBucketAndKey(urlPath, hostHeader string) (string, string) {
-	// Check if this is virtual-hosted style (bucket.s3.amazonaws.com or bucket.s3-region.amazonaws.com)
-	// Also support custom S3-compatible endpoints
-	if hostHeader != "" {
-		// Common patterns for virtual-hosted style:
-		// - bucket.s3.amazonaws.com
-		// - bucket.s3.region.amazonaws.com
-		// - bucket.s3-region.amazonaws.com
-		// - bucket.custom-s3-endpoint.com
+	// Remove port from host if present
+	host := hostHeader
+	if colonIndex := strings.Index(host, ":"); colonIndex > 0 {
+		host = host[:colonIndex]
+	}
 
-		// For proxy use, we expect format: bucket.proxy-host:port or bucket.proxy-host
-		parts := strings.Split(hostHeader, ".")
-		if len(parts) >= 2 {
-			// First part is likely the bucket name
-			bucket := parts[0]
-			// Remove port if present
-			if colonIndex := strings.Index(bucket, ":"); colonIndex > 0 {
-				bucket = bucket[:colonIndex]
+	// Check if this is virtual-hosted style
+	// Virtual-hosted: bucket.domain/key (e.g., my-bucket.s3.local/file.txt)
+	// Path-style: domain/bucket/key (e.g., s3.local/my-bucket/file.txt)
+
+	if proxyDomain != "" && strings.HasSuffix(host, proxyDomain) {
+		// We have a configured proxy domain
+		// Check if host is exactly the proxy domain (path-style) or a subdomain (virtual-hosted)
+		if host == proxyDomain {
+			// Exact match: path-style (e.g., s3.local/bucket/key)
+			urlPath = strings.TrimPrefix(urlPath, "/")
+			parts := strings.SplitN(urlPath, "/", 2)
+			if len(parts) < 1 || parts[0] == "" {
+				return "", ""
 			}
-
-			// In virtual-hosted style, the path is just the object key
+			if len(parts) == 1 {
+				return parts[0], ""
+			}
+			return parts[0], parts[1]
+		} else {
+			// Subdomain: virtual-hosted (e.g., bucket.s3.local/key)
+			bucket := strings.TrimSuffix(host, "."+proxyDomain)
 			key := strings.TrimPrefix(urlPath, "/")
-			if bucket != "" && key != "" {
-				return bucket, key
-			}
-			// If no key in path, might be a bucket operation
-			if bucket != "" && urlPath == "/" {
-				return bucket, ""
-			}
+			return bucket, key
+		}
+	}
+
+	// No proxy domain configured, try to detect based on host structure
+	hostParts := strings.Split(host, ".")
+	if len(hostParts) >= 2 {
+		// Has subdomain, assume virtual-hosted
+		bucket := hostParts[0]
+		key := strings.TrimPrefix(urlPath, "/")
+		if bucket != "" && key != "" {
+			return bucket, key
+		}
+		if bucket != "" && urlPath == "/" {
+			return bucket, ""
 		}
 	}
 
 	// Fall back to path-style parsing
-	// Remove leading slash
 	urlPath = strings.TrimPrefix(urlPath, "/")
-
-	// Split into parts
 	parts := strings.SplitN(urlPath, "/", 2)
-	if len(parts) < 1 {
+	if len(parts) < 1 || parts[0] == "" {
 		return "", ""
 	}
 	if len(parts) == 1 {
-		// Just bucket, no key
 		return parts[0], ""
 	}
-
 	return parts[0], parts[1]
 }
 
