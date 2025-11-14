@@ -53,7 +53,8 @@ jobs:
           sleep 10
 
           # Run test suite
-          if ! docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
+          if ! docker compose exec -T test-client node index.js test-styles ${TEST_BUCKET} && \
+             docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
             echo "::error::Integration tests failed"
             docker compose logs s3-proxy
             docker compose down -v
