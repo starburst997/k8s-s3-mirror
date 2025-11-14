@@ -18,9 +18,10 @@ The proxy follows a simple, efficient design:
 ### Request Flow
 
 1. **Application** → HTTP → **Proxy** (inside K8s cluster)
-2. **Proxy** authenticates and forwards → HTTPS → **Main S3**
-3. **Proxy** (async) → logs to **PostgreSQL**
-4. **Proxy** (async) → mirrors to **Backup S3**
+2. **Proxy** detects request style (path-style or virtual-hosted) and preserves it
+3. **Proxy** authenticates and forwards → HTTPS → **Main S3** (same style as received)
+4. **Proxy** (async) → logs to **PostgreSQL**
+5. **Proxy** (async) → mirrors to **Backup S3** (same style as received)
 
 ## Key Design Decisions
 
@@ -29,7 +30,8 @@ The proxy follows a simple, efficient design:
 3. **One table per bucket**: Better performance and isolation
 4. **Async mirroring**: Non-blocking operations for minimal latency
 5. **Soft deletes in DB**: Tracks deletions without losing history
-6. **Dual request style support**: Handles both path-style (`/bucket/key`) and virtual-hosted (`bucket.domain/key`) S3 requests
+6. **Request style preservation**: Detects and preserves both path-style (`/bucket/key`) and virtual-hosted (`bucket.domain/key`) S3 request styles when forwarding and mirroring
+7. **Canonical query string**: AWS Signature V4 compliant query parameter sorting and encoding for tools like barman-cloud
 
 ## Implementation Details
 

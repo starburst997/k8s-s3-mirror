@@ -214,24 +214,31 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	// Create new request to forward to main S3
 	forwardURL := *targetURL
 
-	// Track if original request was virtual-hosted style
-	isVirtualHosted := false
+	// Detect if original request was virtual-hosted style
+	isVirtualHosted := bucket != "" && !strings.HasPrefix(req.URL.Path, "/"+bucket)
 
-	// Determine if this is virtual-hosted style and convert to path-style for forwarding
-	// (Most S3-compatible services support path-style, and it's simpler for proxying)
-	if bucket != "" && !strings.HasPrefix(req.URL.Path, "/"+bucket) {
-		// This was virtual-hosted style, convert to path-style
-		isVirtualHosted = true
-		if key != "" {
-			forwardURL.Path = "/" + bucket + "/" + key
-		} else {
-			forwardURL.Path = "/" + bucket
-		}
-	} else {
-		// Already path-style, use as-is
-		forwardURL.Path = req.URL.Path
-	}
+	// Preserve the original request style when forwarding to main S3
+	// This keeps the signature calculation straightforward
+	forwardURL.Path = req.URL.Path
 	forwardURL.RawQuery = req.URL.RawQuery
+
+	if isVirtualHosted {
+		// Virtual-hosted style: bucket goes in the hostname
+		// Extract hostname from targetURL (could be "s3.amazonaws.com" or "s3.amazonaws.com:443")
+		targetHost := targetURL.Host
+		if targetHost == "" {
+			targetHost = targetURL.Hostname()
+		}
+		forwardURL.Host = bucket + "." + targetHost
+		log.Debugf("Virtual-hosted: forwarding to %s%s", forwardURL.Host, forwardURL.Path)
+	} else {
+		// Path-style: use target host as-is, bucket is in path
+		forwardURL.Host = targetURL.Host
+		if forwardURL.Host == "" {
+			forwardURL.Host = targetURL.Hostname()
+		}
+		log.Debugf("Path-style: forwarding to %s%s", forwardURL.Host, forwardURL.Path)
+	}
 
 	forwardReq, err := http.NewRequest(req.Method, forwardURL.String(), bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -246,8 +253,7 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 		}
 	}
 
-	// Sign the request with main S3 credentials
-	// Pass bucket info for proper Host header handling
+	// Sign the request with main S3 credentials using the same style as the request
 	signRequestV4WithBucket(forwardReq, mainAccessKey, mainSecretKey, "us-east-1", "s3", bodyBytes, bucket, isVirtualHosted)
 
 	// Forward the request using shared client
@@ -468,13 +474,11 @@ func signRequestV4WithBucket(req *http.Request, accessKey, secretKey, region, se
 	payloadHashStr := hex.EncodeToString(payloadHash[:])
 	req.Header.Set("X-Amz-Content-Sha256", payloadHashStr)
 
-	// For virtual-hosted style requests, set the Host header to include the bucket
-	// This ensures the signature matches what S3 expects
-	if isVirtualHosted && bucket != "" && req.URL.Host != "" {
-		// Construct virtual-hosted style host: bucket.endpoint
-		req.Host = bucket + "." + req.URL.Host
-		log.Debugf("Set virtual-hosted Host header: %s", req.Host)
-	}
+	// Note: req.Host should already be set correctly from the URL construction
+	// For virtual-hosted: req.Host = "bucket.s3.amazonaws.com"
+	// For path-style: req.Host = "s3.amazonaws.com"
+	// No need to modify it here - the URL already has the correct structure
+	log.Debugf("Signing request with Host: %s, Path: %s", req.Host, req.URL.Path)
 
 	// Create canonical request
 	canonicalHeaders := createCanonicalHeaders(req)
