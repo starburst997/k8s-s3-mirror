@@ -41,6 +41,7 @@ jobs:
         uses: starburst997/docker-helm-push@v1
         with:
           additional-tags: latest
+          image-name: s3-mirror
           version: ${{ steps.version.outputs.version }}
           version-breakdown: true
           git-push: true

@@ -40,6 +40,7 @@ jobs:
         uses: starburst997/docker-helm-push@v1
         with:
           additional-tags: dev
+          image-name: s3-mirror
           helm-namespace: "charts/dev"
           version: ${{ steps.version.outputs.version }}
           version-breakdown: true
