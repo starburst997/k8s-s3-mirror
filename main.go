@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,6 +42,9 @@ var (
 	// Database connections cache per bucket
 	dbConnections = make(map[string]*sql.DB)
 	dbMutex       sync.RWMutex
+
+	// Shared HTTP client with connection pooling
+	httpClient *http.Client
 )
 
 func init() {
@@ -103,6 +108,35 @@ func init() {
 
 	if !disableDatabase && postgresURL == "" {
 		log.Fatal("POSTGRES_URL or POSTGRES_PASSWORD is required when database is enabled")
+	}
+
+	// Initialize shared HTTP client with custom settings
+	httpClient = &http.Client{
+		Timeout: 60 * time.Second, // Increase timeout from 30s to 60s
+		Transport: &http.Transport{
+			// Custom dialer with DNS timeout settings
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second, // Connection timeout
+				KeepAlive: 30 * time.Second, // Keep-alive timeout
+				Resolver: &net.Resolver{
+					PreferGo: true, // Use Go's DNS resolver instead of system's
+					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+						d := net.Dialer{
+							Timeout: 10 * time.Second, // DNS timeout
+						}
+						return d.DialContext(ctx, network, address)
+					},
+				},
+			}).DialContext,
+			// Connection pool settings
+			MaxIdleConns:        100,              // Maximum idle connections across all hosts
+			MaxIdleConnsPerHost: 10,               // Maximum idle connections per host
+			MaxConnsPerHost:     20,               // Maximum connections per host
+			IdleConnTimeout:     90 * time.Second, // How long idle connections are kept
+			TLSHandshakeTimeout: 10 * time.Second, // TLS handshake timeout
+			DisableKeepAlives:   false,            // Use keep-alive connections
+			ForceAttemptHTTP2:   true,             // Attempt HTTP/2
+		},
 	}
 }
 
@@ -193,12 +227,8 @@ func handleProxyRequest(w http.ResponseWriter, req *http.Request, targetURL *url
 	// Sign the request with main S3 credentials
 	signRequestV4(forwardReq, mainAccessKey, mainSecretKey, "us-east-1", "s3", bodyBytes)
 
-	// Forward the request
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Do(forwardReq)
+	// Forward the request using shared client
+	resp, err := httpClient.Do(forwardReq)
 	if err != nil {
 		http.Error(w, "Failed to forward request to S3", http.StatusBadGateway)
 		log.Errorf("Failed to forward request: %v", err)
@@ -369,12 +399,8 @@ func mirrorToBackupS3(bucket, key, method string, body []byte, headers http.Head
 	// Sign request with mirror credentials
 	signRequestV4(req, mirrorAccessKey, mirrorSecretKey, "us-east-1", "s3", body)
 
-	// Send request
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	// Send request using shared client
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
