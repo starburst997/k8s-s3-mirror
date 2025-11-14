@@ -4,7 +4,7 @@ services:
     image: ghcr.io/starburst997/docker-compose-wildcard:latest
     container_name: dnsmasq
     environment:
-      WILDCARD_DOMAIN: s3-proxy # Domain for wildcard resolution (also the target service name)
+      WILDCARD_DOMAIN: s3.local # Domain for wildcard resolution (also the target service name)
       LOG_QUERIES: "yes" # Enable query logging
     cap_add:
       - NET_ADMIN
@@ -29,7 +29,7 @@ services:
       timeout: 5s
       retries: 5
 
-  s3-proxy:
+  s3.local:
     build: ..
     depends_on:
       postgres:
@@ -55,6 +55,9 @@ services:
       # PostgreSQL connection
       POSTGRES_URL: postgres://s3mirror:s3mirror123@postgres:5432/s3mirror?sslmode=disable
 
+      # Proxy domain for virtual-hosted style detection
+      PROXY_DOMAIN: s3.local
+
       # Enable debug logging for testing
       LOG_LEVEL: debug
     command: ["./s3-proxy"]
@@ -63,11 +66,11 @@ services:
   test-client:
     build: ./test-client
     depends_on:
-      - s3-proxy
+      - s3.local
       - dnsmasq
     dns: 172.20.0.253 # Use dnsmasq for DNS resolution
     environment:
-      S3_PROXY_ENDPOINT: http://s3-proxy:8080
+      S3_PROXY_ENDPOINT: http://s3.local:8080
       # Main S3 credentials for direct verification
       MAIN_S3_ENDPOINT: ${MAIN_S3_ENDPOINT}
       MAIN_ACCESS_KEY: ${MAIN_ACCESS_KEY}

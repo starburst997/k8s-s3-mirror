@@ -15,13 +15,24 @@ import { fileURLToPath } from "url"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Configure S3 client to use the proxy
+// Configure S3 client to use the proxy (virtual-hosted style)
 const s3Client = new S3Client({
   endpoint: process.env.S3_PROXY_ENDPOINT || "http://localhost:8080",
   region: "us-east-1", // Required by SDK but not used by proxy
   forcePathStyle: false,
   credentials: {
     accessKeyId: "dummy", // Proxy handles real auth
+    secretAccessKey: "dummy",
+  },
+})
+
+// Configure S3 client to use path-style (/<BUCKET>/<KEY>)
+const s3ClientPathStyle = new S3Client({
+  endpoint: process.env.S3_PROXY_ENDPOINT || "http://localhost:8080",
+  region: "us-east-1",
+  forcePathStyle: true, // Use path-style: /bucket/key instead of bucket.domain/key
+  credentials: {
+    accessKeyId: "dummy",
     secretAccessKey: "dummy",
   },
 })
@@ -226,6 +237,116 @@ function getContentType(filePath) {
   return types[ext] || "application/octet-stream"
 }
 
+// Test both path-style and virtual-hosted style
+async function runStyleTests(bucket) {
+  console.log(chalk.bold.cyan("\n🧪 Running Path-Style vs Virtual-Hosted Style Tests\n"))
+  console.log(chalk.gray(`Proxy endpoint: ${process.env.S3_PROXY_ENDPOINT || "http://localhost:8080"}`))
+  console.log(chalk.gray(`Test bucket: ${bucket}\n`))
+
+  const timestamp = Date.now()
+  const testFile = path.join(__dirname, "test-style-comparison.txt")
+  const testContent = `Style test created at ${new Date().toISOString()}`
+
+  try {
+    // Create test file
+    await fs.promises.writeFile(testFile, testContent)
+
+    // Test 1: Upload with virtual-hosted style
+    console.log(chalk.bold("\n1️⃣  Testing VIRTUAL-HOSTED style (bucket.domain/key)..."))
+    console.log(chalk.gray("   Using forcePathStyle: false"))
+    const virtualHostedKey = `test-styles/virtual-hosted-${timestamp}.txt`
+    await uploadFile(bucket, virtualHostedKey, testFile, s3Client)
+
+    // Test 2: Upload with path-style
+    console.log(chalk.bold("\n2️⃣  Testing PATH-STYLE (/bucket/key)..."))
+    console.log(chalk.gray("   Using forcePathStyle: true"))
+    const pathStyleKey = `test-styles/path-style-${timestamp}.txt`
+    await uploadFile(bucket, pathStyleKey, testFile, s3ClientPathStyle)
+
+    // Wait for mirroring FIRST
+    console.log(chalk.gray("\n   Waiting 3 seconds for async mirroring..."))
+    await new Promise(resolve => setTimeout(resolve, 3000))
+
+    console.log(chalk.bold("\n3️⃣  Verifying path-style file was mirrored to CORRECT bucket..."))
+    const mirrorBucket = process.env.MIRROR_BUCKET_PREFIX ? `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
+    try {
+      const mirrorFiles = await listFiles(mirrorBucket, `test-styles/path-style-${timestamp}`, mirrorS3Client)
+      if (mirrorFiles.length > 0) {
+        console.log(chalk.green(`   ✅ File found in mirror bucket "${mirrorBucket}" (path-style worked correctly)`))
+      } else {
+        console.log(chalk.red(`   ❌ File NOT found in mirror bucket "${mirrorBucket}"`))
+        console.log(chalk.yellow(`   Checking if it was incorrectly mirrored to bucket "s3"...`))
+        const wrongBucket = process.env.MIRROR_BUCKET_PREFIX ? `${process.env.MIRROR_BUCKET_PREFIX}s3` : "s3"
+        try {
+          const wrongFiles = await listFiles(wrongBucket, `test-styles/path-style-${timestamp}`, mirrorS3Client)
+          if (wrongFiles.length > 0) {
+            console.log(chalk.red(`   ❌ FOUND! File was incorrectly mirrored to bucket "${wrongBucket}"`))
+            console.log(chalk.red(`   This means the proxy parsed "s3" as the bucket name instead of "${bucket}"`))
+            process.exit(1)
+          }
+        } catch (e) {
+          // Bucket doesn't exist, which is fine
+        }
+        console.log(chalk.red(`   Path-style request failed - file not found in any bucket`))
+        process.exit(1)
+      }
+    } catch (error) {
+      console.log(chalk.red(`   ❌ Error checking mirror: ${error.message}`))
+      process.exit(1)
+    }
+
+    // Test 4: Download using path-style
+    console.log(chalk.bold("\n4️⃣  Testing download with PATH-STYLE..."))
+    const downloadPath1 = path.join(__dirname, "downloaded-path-style.txt")
+    await downloadFile(bucket, virtualHostedKey, downloadPath1, s3ClientPathStyle)
+    const content1 = await fs.promises.readFile(downloadPath1, "utf-8")
+    if (content1 === testContent) {
+      console.log(chalk.green("   ✅ Path-style download successful"))
+    } else {
+      console.log(chalk.red("   ❌ Path-style download content mismatch"))
+      process.exit(1)
+    }
+    await fs.promises.unlink(downloadPath1)
+
+    // Test 5: Download using virtual-hosted style
+    console.log(chalk.bold("\n5️⃣  Testing download with VIRTUAL-HOSTED style..."))
+    const downloadPath2 = path.join(__dirname, "downloaded-virtual-hosted.txt")
+    await downloadFile(bucket, pathStyleKey, downloadPath2, s3Client)
+    const content2 = await fs.promises.readFile(downloadPath2, "utf-8")
+    if (content2 === testContent) {
+      console.log(chalk.green("   ✅ Virtual-hosted download successful"))
+    } else {
+      console.log(chalk.red("   ❌ Virtual-hosted download content mismatch"))
+      process.exit(1)
+    }
+    await fs.promises.unlink(downloadPath2)
+
+    // Test 6: Cleanup with path-style
+    console.log(chalk.bold("\n6️⃣  Testing delete with PATH-STYLE..."))
+    await deleteFile(bucket, virtualHostedKey, s3ClientPathStyle)
+    await deleteFile(bucket, pathStyleKey, s3ClientPathStyle)
+
+    // Wait for deletion
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // Verify cleanup
+    console.log(chalk.bold("\n   Verifying cleanup..."))
+    const finalFiles = await listFiles(bucket, `test-styles/path-style-${timestamp}`, s3Client)
+    if (finalFiles.length === 0) {
+      console.log(chalk.green("   ✅ All test files cleaned up"))
+    }
+
+    // Cleanup local file
+    await fs.promises.unlink(testFile)
+
+    console.log(chalk.bold.green("\n✨ All style tests passed! Both path-style and virtual-hosted style work correctly.\n"))
+  } catch (error) {
+    console.error(chalk.bold.red("\n❌ Style test suite failed\n"))
+    console.error(error)
+    process.exit(1)
+  }
+}
+
 // Run all tests
 async function runTests(bucket) {
   console.log(chalk.bold.cyan("\n🧪 Running S3 Proxy Test Suite\n"))
@@ -244,8 +365,10 @@ async function runTests(bucket) {
   }
   console.log()
 
+  const timestamp = Date.now()
   const testFile = path.join(__dirname, "test-file.txt")
   const testContent = `Test file created at ${new Date().toISOString()}\nThis is a test of the S3 proxy system.`
+  const testKey = `test/file-${timestamp}.txt`
 
   try {
     // Create test file
@@ -255,7 +378,7 @@ async function runTests(bucket) {
 
     // Upload test
     console.log(chalk.bold("\n2️⃣  Testing upload through proxy..."))
-    await uploadFile(bucket, "test/file.txt", testFile)
+    await uploadFile(bucket, testKey, testFile)
 
     // Wait a bit for async mirroring to complete
     console.log(chalk.gray("   Waiting 2 seconds for async mirroring..."))
@@ -264,7 +387,7 @@ async function runTests(bucket) {
     // Verify upload on main S3
     console.log(chalk.bold("\n   Verifying upload on main S3..."))
     try {
-      await listFiles(bucket, "test/", mainS3Client)
+      await listFiles(bucket, testKey, mainS3Client)
       console.log(chalk.green("   ✅ File exists on main S3"))
     } catch (error) {
       console.log(chalk.red(`   ❌ Failed to verify on main S3: ${error.message}`))
@@ -276,7 +399,7 @@ async function runTests(bucket) {
     const mirrorBucket = process.env.MIRROR_BUCKET_PREFIX ?
       `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
     try {
-      await listFiles(mirrorBucket, "test/", mirrorS3Client)
+      await listFiles(mirrorBucket, testKey, mirrorS3Client)
       console.log(chalk.green("   ✅ File exists on mirror S3"))
     } catch (error) {
       console.log(chalk.red(`   ❌ Failed to verify on mirror S3: ${error.message}`))
@@ -293,7 +416,7 @@ async function runTests(bucket) {
     // Download through proxy
     const downloadPath = path.join(__dirname, "downloaded-proxy.txt")
     console.log(chalk.blue("\n   Downloading through proxy..."))
-    await downloadFile(bucket, "test/file.txt", downloadPath)
+    await downloadFile(bucket, testKey, downloadPath)
 
     // Verify proxy download
     const downloadedContent = await fs.promises.readFile(downloadPath, "utf-8")
@@ -308,7 +431,7 @@ async function runTests(bucket) {
     const mainDownloadPath = path.join(__dirname, "downloaded-main.txt")
     console.log(chalk.blue("\n   Downloading directly from main S3..."))
     try {
-      await downloadFile(bucket, "test/file.txt", mainDownloadPath, mainS3Client)
+      await downloadFile(bucket, testKey, mainDownloadPath, mainS3Client)
       const mainContent = await fs.promises.readFile(mainDownloadPath, "utf-8")
       if (mainContent === testContent) {
         console.log(chalk.green("   ✅ Main S3 content matches original"))
@@ -328,7 +451,7 @@ async function runTests(bucket) {
       `${process.env.MIRROR_BUCKET_PREFIX}${bucket}` : bucket
     console.log(chalk.blue("\n   Downloading directly from mirror S3..."))
     try {
-      await downloadFile(mirrorBucketDownload, "test/file.txt", mirrorDownloadPath, mirrorS3Client)
+      await downloadFile(mirrorBucketDownload, testKey, mirrorDownloadPath, mirrorS3Client)
       const mirrorContent = await fs.promises.readFile(mirrorDownloadPath, "utf-8")
       if (mirrorContent === testContent) {
         console.log(chalk.green("   ✅ Mirror S3 content matches original"))
@@ -344,7 +467,7 @@ async function runTests(bucket) {
 
     // Delete test
     console.log(chalk.bold("\n5️⃣  Testing delete through proxy..."))
-    await deleteFile(bucket, "test/file.txt")
+    await deleteFile(bucket, testKey)
 
     // Wait for async deletion to propagate
     console.log(chalk.gray("   Waiting 2 seconds for async deletion..."))
@@ -455,6 +578,13 @@ program
   .description("Run all tests with the specified bucket")
   .action(async (bucket) => {
     await runTests(bucket)
+  })
+
+program
+  .command("test-styles <bucket>")
+  .description("Run path-style vs virtual-hosted style comparison tests")
+  .action(async (bucket) => {
+    await runStyleTests(bucket)
   })
 
 // Parse command line arguments

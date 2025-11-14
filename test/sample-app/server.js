@@ -16,11 +16,13 @@ const S3_BUCKET = process.env.S3_BUCKET || "s3-mirror"
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || "dummy-key"
 const AWS_SECRET_ACCESS_KEY =
   process.env.AWS_SECRET_ACCESS_KEY || "dummy-secret"
+const FORCE_PATH_STYLE = process.env.FORCE_PATH_STYLE === "true"
 
 // Initialize S3 client
 const s3Client = new S3Client({
   endpoint: S3_ENDPOINT,
   region: "us-east-1",
+  forcePathStyle: FORCE_PATH_STYLE, // Support both path-style and virtual-hosted style
   credentials: {
     accessKeyId: AWS_ACCESS_KEY_ID,
     secretAccessKey: AWS_SECRET_ACCESS_KEY,
@@ -73,7 +75,12 @@ app.get("/", (req, res) => {
       <div class="info message">
         <strong>Configuration:</strong><br>
         S3 Endpoint: ${S3_ENDPOINT}<br>
-        Bucket: ${S3_BUCKET}
+        Bucket: ${S3_BUCKET}<br>
+        Style: ${
+          FORCE_PATH_STYLE
+            ? "Path-style (/bucket/key)"
+            : "Virtual-hosted (bucket.domain/key)"
+        }
       </div>
       <form action="/upload" method="post" enctype="multipart/form-data">
         <h3>Upload a file to S3</h3>
