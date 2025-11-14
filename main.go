@@ -21,6 +21,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/rs/dnscache"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -110,34 +111,51 @@ func init() {
 		log.Fatal("POSTGRES_URL or POSTGRES_PASSWORD is required when database is enabled")
 	}
 
-	// Initialize shared HTTP client with custom settings
+	// Initialize shared HTTP client with DNS caching using rs/dnscache
+	resolver := &dnscache.Resolver{}
+
+	// Start background refresh goroutine (refreshes cached entries every 5 minutes)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			resolver.Refresh(true) // true = clear cache of failures too
+		}
+	}()
+
 	httpClient = &http.Client{
-		Timeout: 60 * time.Second, // Increase timeout from 30s to 60s
+		Timeout: 60 * time.Second,
 		Transport: &http.Transport{
-			// Custom dialer with DNS timeout settings
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second, // Connection timeout
-				KeepAlive: 30 * time.Second, // Keep-alive timeout
-				Resolver: &net.Resolver{
-					PreferGo: true, // Use Go's DNS resolver instead of system's
-					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-						d := net.Dialer{
-							Timeout: 10 * time.Second, // DNS timeout
-						}
-						return d.DialContext(ctx, network, address)
-					},
-				},
-			}).DialContext,
-			// Connection pool settings
-			MaxIdleConns:        100,              // Maximum idle connections across all hosts
-			MaxIdleConnsPerHost: 10,               // Maximum idle connections per host
-			MaxConnsPerHost:     20,               // Maximum connections per host
-			IdleConnTimeout:     90 * time.Second, // How long idle connections are kept
-			TLSHandshakeTimeout: 10 * time.Second, // TLS handshake timeout
-			DisableKeepAlives:   false,            // Use keep-alive connections
-			ForceAttemptHTTP2:   true,             // Attempt HTTP/2
+			// Use rs/dnscache for DNS resolution
+			DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				host, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				ips, err := resolver.LookupHost(ctx, host)
+				if err != nil {
+					return nil, err
+				}
+				for _, ip := range ips {
+					var dialer net.Dialer
+					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+					if err == nil {
+						return conn, nil
+					}
+				}
+				return nil, fmt.Errorf("failed to connect to %s", addr)
+			},
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     20,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			DisableKeepAlives:   false,
+			ForceAttemptHTTP2:   true,
 		},
 	}
+
+	log.Info("Initialized HTTP client with DNS caching")
 }
 
 func main() {
