@@ -53,15 +53,23 @@ jobs:
           sleep 10
 
           # Run test suite
-          if ! docker compose exec -T test-client node index.js test-styles ${TEST_BUCKET} && \
-             docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
-            echo "::error::Integration tests failed"
+          if ! docker compose exec -T test-client node index.js test-styles ${TEST_BUCKET}; then
+            echo "::error::Integration tests (test-styles) failed"
             docker compose logs s3-proxy
             docker compose down -v
             exit 1
           fi
 
-          echo "✅ Integration tests passed successfully"
+          echo "✅ test-styles passed successfully"
+
+          if ! docker compose exec -T test-client node index.js test ${TEST_BUCKET}; then
+            echo "::error::Integration tests (test) failed"
+            docker compose logs s3-proxy
+            docker compose down -v
+            exit 1
+          fi
+
+          echo "✅ All integration tests passed successfully"
 
           # Cleanup
           docker compose down -v
