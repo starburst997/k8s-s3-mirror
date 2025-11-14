@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     name: Test
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/test.yaml
     secrets: inherit
 
   release-production:
