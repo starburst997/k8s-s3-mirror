@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:latest
+    image: postgres:17
     environment:
       POSTGRES_USER: s3mirror
       POSTGRES_PASSWORD: s3mirror123
