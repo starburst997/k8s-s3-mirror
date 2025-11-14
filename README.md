@@ -1,18 +1,18 @@
-# K8S S3 Mirror
+# K8S S3 Mirror 🪞☁️
 
 ![Build Status](https://github.com/starburst997/k8s-s3-mirror/workflows/Production%20Release/badge.svg)
 ![License](https://img.shields.io/github/license/starburst997/k8s-s3-mirror)
 ![Go Version](https://img.shields.io/badge/Go-1.21-blue)
 
-A Kubernetes S3 proxy that mirrors operations to backup storage and maintains a PostgreSQL inventory. Useful for disaster recovery, eliminating expensive LIST operations during backups, and tracking S3 usage.
+A Kubernetes S3 proxy that mirrors operations to backup storage and maintains a PostgreSQL inventory. Useful for disaster recovery 🆘, eliminating expensive LIST operations during backups 💰, and tracking S3 usage 📊.
 
-## How It Works
+## How It Works 🔧⚙️
 
-Your application connects to the proxy instead of S3 directly. The proxy forwards requests to your main S3 storage, then asynchronously mirrors to backup storage and optionally logs to PostgreSQL (one table per bucket when configured).
+Your application 📱 connects to the proxy instead of S3 directly. The proxy 🔀 forwards requests to your main S3 storage 🗄️, then asynchronously mirrors to backup storage 💾 and optionally logs to PostgreSQL 🐘 (one table per bucket when configured).
 
-## Quick Start
+## Quick Start 🚀
 
-### Installation with Helm
+### Installation with Helm ⎈
 
 ```bash
 # Create values.yaml (minimal configuration without database)
@@ -38,9 +38,9 @@ helm install s3-mirror oci://ghcr.io/starburst997/charts/s3-mirror \
   -f values.yaml
 ```
 
-### Wildcard DNS Setup (For Virtual-Hosted-Style URLs)
+### Wildcard DNS Setup 🌐 (For Virtual-Hosted-Style URLs)
 
-If you want to use virtual-hosted-style S3 URLs (e.g., `http://my-bucket.s3.local`), you need to configure wildcard DNS in your cluster:
+If you want to use virtual-hosted-style S3 URLs (e.g., `http://my-bucket.s3.local`), you need to configure wildcard DNS in your cluster 🎯:
 
 ```bash
 # Apply CoreDNS custom configuration
@@ -50,13 +50,13 @@ kubectl apply -f examples/kubernetes/coredns-wildcard.yaml
 kubectl rollout restart deployment coredns -n kube-system
 ```
 
-This enables `*.s3.local` to resolve to the s3-mirror service. See [`examples/kubernetes/coredns-wildcard.yaml`](examples/kubernetes/coredns-wildcard.yaml) for the full configuration.
+This enables `*.s3.local` to resolve to the s3-mirror service 🎉. See [`examples/kubernetes/coredns-wildcard.yaml`](examples/kubernetes/coredns-wildcard.yaml) for the full configuration 📄.
 
-**Note:** If you only need path-style URLs (e.g., `http://s3.local/my-bucket/file.txt`), wildcard DNS is not required.
+**Note:** If you only need path-style URLs (e.g., `http://s3.local/my-bucket/file.txt`), wildcard DNS is not required ✨.
 
-### Application Integration
+### Application Integration 🔌
 
-Simply update your S3 endpoint - no other changes needed:
+Simply update your S3 endpoint - no other changes needed 🎊:
 
 ```javascript
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
@@ -77,45 +77,45 @@ await s3.send(
 )
 ```
 
-## Configuration
+## Configuration ⚙️🔧
 
-### Environment Variables
+### Environment Variables 🌍
 
 | Variable               | Description                                   | Required |
 | ---------------------- | --------------------------------------------- | -------- |
-| `MAIN_S3_ENDPOINT`     | Primary S3 endpoint                           | Yes      |
-| `MAIN_ACCESS_KEY`      | Primary S3 access key                         | Yes      |
-| `MAIN_SECRET_KEY`      | Primary S3 secret key                         | Yes      |
-| `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint                            | Yes      |
-| `MIRROR_ACCESS_KEY`    | Mirror S3 access key                          | Yes      |
-| `MIRROR_SECRET_KEY`    | Mirror S3 secret key                          | Yes      |
-| `POSTGRES_URL`         | PostgreSQL connection string\*                | No       |
-| `MIRROR_BUCKET_PREFIX` | Prefix for mirror bucket names                | No       |
-| `PROXY_DOMAIN`         | Domain for virtual-hosted style detection\*\* | No       |
-| `DISABLE_DATABASE`     | Force disable database tracking\*\*\*         | No       |
-| `LOG_LEVEL`            | Logging level (debug/info/warn/error/off)     | No       |
+| `MAIN_S3_ENDPOINT`     | Primary S3 endpoint 🏢                        | Yes ✅   |
+| `MAIN_ACCESS_KEY`      | Primary S3 access key 🔑                      | Yes ✅   |
+| `MAIN_SECRET_KEY`      | Primary S3 secret key 🔐                      | Yes ✅   |
+| `MIRROR_S3_ENDPOINT`   | Mirror S3 endpoint 🪞                         | Yes ✅   |
+| `MIRROR_ACCESS_KEY`    | Mirror S3 access key 🔑                       | Yes ✅   |
+| `MIRROR_SECRET_KEY`    | Mirror S3 secret key 🔐                       | Yes ✅   |
+| `POSTGRES_URL`         | PostgreSQL connection string\* 🐘             | No ❌    |
+| `MIRROR_BUCKET_PREFIX` | Prefix for mirror bucket names 📝             | No ❌    |
+| `PROXY_DOMAIN`         | Domain for virtual-hosted style detection\*\* 🌐 | No ❌    |
+| `DISABLE_DATABASE`     | Force disable database tracking\*\*\* 🚫      | No ❌    |
+| `LOG_LEVEL`            | Logging level (debug/info/warn/error/off) 📋  | No ❌    |
 
-- \* If not provided, database operations are automatically disabled
-- \*\* Recommended when using domain with dots (e.g., `s3.local`). Improves path-style vs virtual-hosted detection
-- \*\*\* Only needed to disable database when POSTGRES_URL is set
+- \* If not provided, database operations are automatically disabled 🔕
+- \*\* Recommended when using domain with dots (e.g., `s3.local`). Improves path-style vs virtual-hosted detection 🎯
+- \*\*\* Only needed to disable database when POSTGRES_URL is set 🔧
 
-### Deployment Patterns
+### Deployment Patterns 🚀📦
 
-#### Shared Proxy (Recommended)
+#### Shared Proxy (Recommended) 👍
 
-Deploy one proxy instance that multiple applications share:
+Deploy one proxy instance that multiple applications share 🤝:
 
 ```yaml
 # All apps point to: http://s3.local
 ```
 
-#### Sidecar Pattern
+#### Sidecar Pattern 📦🔗
 
-Each application gets its own proxy sidecar.
+Each application gets its own proxy sidecar 🚗.
 
-## Database Schema (Optional)
+## Database Schema (Optional) 🗃️🐘
 
-When PostgreSQL is configured, each bucket gets its own table (`bucket_<bucketname>`) with the following structure:
+When PostgreSQL is configured, each bucket gets its own table (`bucket_<bucketname>`) with the following structure 🏗️:
 
 ```sql
 CREATE TABLE bucket_my_data (
@@ -131,7 +131,7 @@ CREATE TABLE bucket_my_data (
 );
 ```
 
-### Useful Queries
+### Useful Queries 🔍💡
 
 ```sql
 -- Files not yet backed up
@@ -148,9 +148,9 @@ FROM bucket_my_data WHERE deleted = FALSE
 GROUP BY content_type;
 ```
 
-## Development
+## Development 💻👨‍💻
 
-### Local Testing with Docker Compose
+### Local Testing with Docker Compose 🐳
 
 ```bash
 git clone https://github.com/starburst997/k8s-s3-mirror
@@ -167,7 +167,7 @@ docker compose up --build
 docker compose exec test-client node index.js test my-test-bucket
 ```
 
-### Building from Source
+### Building from Source 🔨🏗️
 
 ```bash
 go mod download
@@ -176,9 +176,9 @@ go build -o s3-proxy .
 docker build -t k8s-s3-mirror:local .
 ```
 
-## Monitoring
+## Monitoring 📊👀
 
-The proxy exposes health checks on port 8080 and logs all operations in JSON format:
+The proxy exposes health checks 🏥 on port 8080 and logs all operations in JSON format 📝:
 
 ```json
 {
@@ -192,10 +192,10 @@ The proxy exposes health checks on port 8080 and logs all operations in JSON for
 }
 ```
 
-## Support
+## Support 🆘💬
 
-For issues or questions, please open an [issue](https://github.com/starburst997/k8s-s3-mirror/issues) on GitHub.
+For issues or questions 🤔, please open an [issue](https://github.com/starburst997/k8s-s3-mirror/issues) on GitHub 🐙.
 
-## License
+## License 📜⚖️
 
-MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License 🎓 - see the [LICENSE](LICENSE) file for details 📄.
