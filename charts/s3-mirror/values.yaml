@@ -53,6 +53,7 @@ config:
   MAIN_S3_ENDPOINT: "https://s3.amazonaws.com"
   MIRROR_S3_ENDPOINT: "https://s3.us-west-000.backblazeb2.com"
   MIRROR_BUCKET_PREFIX: ""
+  PROXY_DOMAIN: "s3.local"
   LOG_LEVEL: "info"
 
 # Environment Variables - Secrets
